@@ -20,6 +20,7 @@ import { ThreatsPanel } from '../threats/ThreatsPanel'
 import { generateThreats, mergeThreats } from '../threats/ruleEngine'
 import { suggestDreadScore, dreadAverage, dreadRiskLevel, DREAD_RISK_COLOR, type DreadRiskLevel } from '../threats/dreadEngine'
 import { ShapeButton } from '../canvas/ShapeButton'
+import { TrustBoundaryButton, type BoundaryShapePreset } from '../canvas/TrustBoundaryButton'
 import { ExportMenu } from '../canvas/ExportMenu'
 import { ElementsTable } from '../canvas/ElementsTable'
 import { useResizablePanel } from '../canvas/useResizablePanel'
@@ -75,7 +76,12 @@ const SHAPE_ICONS: Record<ElementType, ReactNode> = {
   'trust-boundary': <IconShield size={15} color="#f59e0b" aria-hidden="true" />,
 }
 
-function makeNode(elementType: ElementType, index: number, preset?: CatalogEntry): DiagramNode {
+function makeNode(
+  elementType: ElementType,
+  index: number,
+  preset?: CatalogEntry,
+  boundaryPreset?: BoundaryShapePreset
+): DiagramNode {
   const base = {
     id: crypto.randomUUID(),
     type: elementType,
@@ -87,12 +93,13 @@ function makeNode(elementType: ElementType, index: number, preset?: CatalogEntry
       attributes: preset
         ? preset.fields.reduce((acc, f) => ({ ...acc, [f.key]: '' }), {} as Record<string, string | boolean>)
         : undefined,
+      boundaryShape: boundaryPreset?.shape,
     },
   }
   if (elementType === 'trust-boundary') {
     return {
       ...base,
-      style: { width: 320, height: 220 },
+      style: { width: boundaryPreset?.width ?? 320, height: boundaryPreset?.height ?? 220 },
       zIndex: -1,
     }
   }
@@ -248,6 +255,12 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
 
   function addShape(elementType: ElementType, preset?: CatalogEntry) {
     const node = makeNode(elementType, addedCount, preset)
+    setAddedCount((c) => c + 1)
+    setNodes((nds) => [...nds, node])
+  }
+
+  function addBoundary(preset: BoundaryShapePreset) {
+    const node = makeNode('trust-boundary', addedCount, undefined, preset)
     setAddedCount((c) => c + 1)
     setNodes((nds) => [...nds, node])
   }
@@ -657,7 +670,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
                 <div className="canvas-toolbar__group">
                   <span className="canvas-toolbar__group-label">Add element</span>
                   <div className="canvas-toolbar__palette">
-                    {(Object.keys(SHAPE_LABELS) as ElementType[]).map((type) => (
+                    {(['process', 'external-entity', 'data-store'] as ElementType[]).map((type) => (
                       <ShapeButton
                         key={type}
                         elementType={type}
@@ -666,6 +679,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
                         onAdd={addShape}
                       />
                     ))}
+                    <TrustBoundaryButton onAdd={addBoundary} />
                   </div>
                 </div>
                 <span className="canvas-toolbar__divider canvas-toolbar__divider--tall" />

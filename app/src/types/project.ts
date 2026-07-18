@@ -16,6 +16,8 @@ export interface NodeColors {
   text?: string
 }
 
+export type BoundaryShape = 'rectangle' | 'circle' | 'cloud'
+
 export interface DiagramNodeData extends Record<string, unknown> {
   label: string
   elementType: ElementType
@@ -23,6 +25,10 @@ export interface DiagramNodeData extends Record<string, unknown> {
   componentType?: string
   attributes?: Record<string, AttributeValue>
   colors?: NodeColors
+  /** Trust-boundary only. Undefined means 'rectangle' (all boundaries before
+   *  this field existed). 'Square' isn't its own shape — it's a rectangle
+   *  boundary just given equal initial width/height when added. */
+  boundaryShape?: BoundaryShape
 }
 
 export type LineStyle = 'solid' | 'dashed' | 'dotted'

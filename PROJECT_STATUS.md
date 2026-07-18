@@ -1,22 +1,41 @@
-# Threat Modeling Desktop App — Status Handoff
+# Threat Modeler — Status Handoff
 
-Written mid-session as a resume point before context compaction. If you're a fresh
-Claude Code session reading this: the user wants to keep building this app. Read
-this whole file before touching code — it captures decisions and gotchas that
-aren't obvious from the code alone.
+Written as a resume point at the end of a work session (either before context
+compaction or before the user steps away for the day). If you're a fresh Claude
+Code session reading this: the user wants to keep building this app. Read this
+whole file before touching code — it captures decisions and gotchas that aren't
+obvious from the code alone.
+
+## Resume here (updated end of this session)
+
+1. **Trust boundary reshape (Square/Rectangle/Circle/Cloud presets) was just
+   built and typechecked, but never tested live** — the session ended before
+   the user could try it. This is the first thing to verify. See Backlog #1
+   below for the exact checkpoint.
+2. Everything through the ribbon toolbar redesign has been tested and
+   confirmed working by the user.
+3. Release 2 (backlog cleanup) is effectively done once #1 above is verified.
+   Next up per the agreed roadmap: **Release 3 — data model depth** (data
+   classification/type tags on data flows, richer auth/protocol fields) — see
+   "Release roadmap" section below for the full sequencing through Release 7.
+4. Everything is committed and pushed to
+   `https://github.com/harbinscott/ThreatModeler` (`main` branch) as of the
+   end of this session.
 
 ## What this is
 
-A Windows desktop threat-modeling tool (Electron + React + TypeScript), inspired by
-Microsoft's Threat Modeling Tool and OWASP Threat Dragon, but unifying STRIDE
-(diagram-driven auto threat generation), DREAD (scoring — not yet built), and PASTA
-(guided workflow — not yet built) rather than treating them as mutually exclusive.
-Built as a learning/portfolio project — competitive landscape doesn't drive scope
+"Threat Modeler" — a Windows desktop threat-modeling tool (Electron + React +
+TypeScript), inspired by Microsoft's Threat Modeling Tool and OWASP Threat
+Dragon, unifying STRIDE (diagram-driven auto threat generation), DREAD (risk
+scoring), and PASTA (guided 7-stage business-risk workflow) as layered views of
+the same threat model rather than mutually exclusive picks. All three
+frameworks are fully built — see "What's built" below. Built as a
+learning/portfolio project — competitive landscape doesn't drive scope
 decisions, the user's actual requests do.
 
-Not yet named. Folder/package name is literally `app`. GitHub placeholder was "TMU".
-Name ideas floated earlier: ThreatForge, RiskLoom, Bastion Modeler, ThreatBlueprint,
-Cartograph, Warden — nothing chosen.
+Named and branded this session (user supplied a brand guide): navy/blue/red
+palette, Inter font, hexagon-shield icon (see "Fixed a real production-only
+bug + rebranded to 'Threat Modeler'" below for the full rebrand writeup).
 
 ## Where things live
 
@@ -71,18 +90,28 @@ the terminal running `npm run electron:dev`, not DevTools.
 - React 19 + TypeScript, Vite dev server
 - `@xyflow/react` (React Flow v12) for the diagram canvas
 - `html-to-image` for PNG diagram capture (used in PDF export)
-- `electron-builder` configured for Windows NSIS installer — **never actually run**
+- `electron-builder` configured for Windows NSIS installer — **working**, see
+  "Installer packaging finally verified" below. Icon at `app/build/icon.ico`.
+- `@tabler/icons-react` for toolbar icons, `@fontsource/inter` for the brand
+  font — both self-hosted, no CDN dependency at runtime.
 
-## Data model — `src/types/project.ts`
+## Data model — `src/types/project.ts` (current shape, abbreviated)
 
 ```
-Project { id, name, description, frameworks{stride,dread,pasta}, diagram{nodes,edges}, threats[], createdAt, updatedAt }
-DiagramNodeData { label, elementType, description?, componentType?, attributes?, colors?{fill,border,text} }
-DiagramEdgeData { label?, lineStyle?(solid/dashed/dotted), arrowStyle?(one-way/two-way/none), color? }
-Threat { id, ruleId, targetType(node/edge), targetId, targetLabel, componentType?, category(S/T/R/I/D/E), title, description, status(open/mitigated/accepted/false-positive), source(auto/manual), notes?, dread?, createdAt }
+Project { id, name, description, frameworks{stride,dread,pasta}, diagram{nodes,edges},
+  threats[], pasta?, info?{owner,contributors,reviewer,assumptions,externalDependencies},
+  notes?, createdAt, updatedAt }
+DiagramNodeData { label, elementType, description?, componentType?, attributes?,
+  colors?{fill,border,text}, boundaryShape?('rectangle'|'circle'|'cloud', trust-boundary only) }
+DiagramEdgeData { label?, lineStyle?, arrowStyle?, color?, attributes? }
+Threat { id, ruleId, targetType, targetId, targetLabel, componentType?, category(S/T/R/I/D/E),
+  title, description, status, source, notes?, dread?{damage,reproducibility,exploitability,
+  affectedUsers,discoverability}, dreadNeedsReview?, createdAt }
 ```
-`Threat.dread` exists in the type but **nothing reads or writes it yet** — DREAD
-scoring is unbuilt (see backlog).
+`attributes` on both nodes and edges holds the full MS-TMT security schema
+(`src/canvas/mstmAttributes.ts`) — see "MS-TMT security attributes" below.
+DREAD scoring, PASTA, Threat Model Info, and Notes are all fully built —
+nothing in this data model is aspirational/unused at this point.
 
 ## Persistence — `electron/main.js`
 
@@ -360,6 +389,32 @@ through a new `updateProjectFields()` helper that patches local `project`
 state directly (same pattern as `commitRename`) — nothing auto-saves, same as
 everywhere else, picked up by the next manual Save.
 
+**Trust boundary resize/reshape + shape presets** — resizing already worked
+(React Flow's `NodeResizer`, min 160x120, wired up since early in the
+project) — the "can I resize it" half of the ask was already done, just
+undocumented. Added *reshape*: new `BoundaryShape = 'rectangle' | 'circle' |
+'cloud'` field (`DiagramNodeData.boundaryShape`, `src/types/project.ts`,
+optional/undefined = 'rectangle' for backward compat with every existing
+saved boundary). `TrustBoundaryNode.tsx` now renders an inner absolutely-
+positioned shape element instead of drawing the border directly on the node
+div — a plain div with `border-radius: 50%` for circle, or an SVG
+(`viewBox="0 0 64 48"`, `preserveAspectRatio="none"` so it stretches to fill
+on resize like the other shapes) with a hand-drawn single-path cloud outline
+for cloud. The cloud path was mocked up and approved via the visualize tool
+before being ported into the component — no overlapping shapes/seams, one
+continuous dashed stroke. New `src/canvas/TrustBoundaryButton.tsx` replaces
+the plain trust-boundary `ShapeButton` in the toolbar's "Add element" group
+— not built on `ShapeButton` itself since boundaries don't have
+componentType catalog presets the way Process/Data Store/External Entity do;
+its caret offers 4 presets (Square/Rectangle/Circle/Cloud) that set both
+`boundaryShape` and initial width/height via a new `boundaryPreset` param
+threaded through `makeNode()`/`addBoundary()`. Clicking the main button
+(not the caret) still defaults to a rectangle, matching prior behavior.
+**Known gap**: shape can only be chosen at creation time — there's no way to
+change an existing boundary's shape afterward via the Inspector (which
+currently shows nothing boundary-specific beyond Name/Description/Color).
+Small, contained follow-up if wanted.
+
 **PDF export** — `src/reports/reportTemplate.ts` (`buildReportHtml`, 'summary' or
 'detailed' variant, light print-friendly theme) + `src/canvas/ExportMenu.tsx`.
 Diagram captured via `html-to-image`'s `toPng` on the `.react-flow` DOM node
@@ -406,12 +461,14 @@ always.
   opportunity for caller/hook state to disagree). Also added a `reset()`
   method so project-load establishes the baseline without polluting the undo
   stack with an initial no-op entry.
-- **Release 2 — Existing backlog cleanup**: MS-TMT-parity dialogs ✅, DREAD
-  overlay coloring ✅, parallel-edge spacing tune ✅ (partial, more design
-  work still wanted), resizable-panel verification ✅ (confirmed by extended
-  use, not a dedicated test). Threat screenshot explicitly skipped — see
-  Backlog. Still open: ribbon design pass (in progress now), plus two new
-  items added mid-release: trust boundary resize/reshape + shape presets.
+- **Release 2 — Existing backlog cleanup** ✅ effectively done. MS-TMT-parity
+  dialogs ✅, DREAD overlay coloring ✅, parallel-edge spacing tune ✅
+  (partial — user flagged it still wants a real design pass, kept as a low
+  priority Backlog item), resizable-panel verification ✅ (confirmed by
+  extended use), ribbon redesign ✅ (mocked up + approved + implemented +
+  confirmed working), trust boundary resize/reshape + shape presets ✅ (added
+  mid-release, implemented, not yet verified by user — see Backlog #1).
+  Threat screenshot explicitly skipped.
 - **Release 3 — Data model depth**: data classification/type tags on data
   flows (currently only Data Store nodes have this), richer
   auth/protocol-mechanism fields (OAuth2/SAML/mTLS/JWT/API-key instead of a
@@ -434,18 +491,21 @@ always.
 
 ## Backlog (explicitly deferred, in rough priority order per most recent conversation)
 
-1. **[Done, awaiting verification]** Ribbon toolbar visual design/organization
-   pass — see "Ribbon toolbar redesign" above. User approved the mockup
-   before implementation; not yet confirmed against the real running app.
-2. **Trust boundary resize/reshape + shape presets** — user wants to (a) be
-   able to resize *and* reshape trust boundaries (currently only a dashed
-   rectangle, and it's unclear from the code whether resize works at all —
-   check `TrustBoundaryNode.tsx` / `boundary-resize-handle` in `canvas.css`),
-   and (b) a new toolbar dropdown of premade shape presets (square,
-   rectangle, circle, cloud) for trust boundaries, similar in spirit to how
-   `ShapeButton.tsx`'s caret already offers component-type presets for
-   Process/Data Store/External Entity. Requested right after the ribbon pass,
-   not started yet.
+1. **[Done, awaiting verification]** Trust boundary resize/reshape + shape
+   presets — see "Trust boundary resize/reshape + shape presets" above.
+   Implemented and typechecked this session but the *session ended before the
+   user could test it live* — this is the first thing to verify next time.
+   Checkpoint: add one of each shape (Square/Rectangle/Circle/Cloud) from the
+   Trust Boundary button's caret, confirm they render distinctly and resize
+   correctly (including into non-square proportions), and confirm an old
+   project with pre-existing rectangle boundaries still loads/looks correct
+   (backward-compat check for the new optional `boundaryShape` field).
+2. **Trust boundary shape editing after creation** — new gap identified while
+   building #1: shape can only be picked at creation time via the toolbar
+   preset; there's no way to change an existing boundary's shape afterward.
+   The Inspector shows nothing boundary-specific beyond Name/Description/
+   Color. Small, contained addition if wanted (add a shape selector to
+   `NodeInspector` in `Inspector.tsx`, gated on `elementType === 'trust-boundary'`).
 3. **Parallel-edge endpoint visual polish** — spacing constants were tuned
    once (`ENDPOINT_SPACING`/`PARALLEL_SPACING` in `FloatingEdge.tsx`) but the
    user still feels it needs a proper design pass, not just bigger numbers.
@@ -458,6 +518,11 @@ Decided against / explicitly skipped:
   staleness tradeoff if the user edits the diagram without revisiting that
   tab. User decided the threat overlay (color-coded badges directly on the
   live diagram) already covers this need well enough — skip.
+
+Done and verified this session:
+- Ribbon toolbar visual design/organization pass — mocked up via the
+  visualize tool, approved, implemented, confirmed working against the real
+  app.
 
 Done this session (context for why the code looks the way it does):
 - **DREAD auto-scoring** and **Full MS-TMT attribute schema** — see "What's
