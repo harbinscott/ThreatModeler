@@ -9,7 +9,7 @@ obvious from the code alone.
 ## Resume here (updated end of this session)
 
 1. **Release 5 — Smart Data Classification & Compliance Tagging — done and
-   fully verified**, including three follow-up refinement rounds from live
+   fully verified**, including four follow-up refinement rounds from live
    testing. See "Compliance tagging (Release 5)" under "What's built" below
    for the full writeup. Highlights:
    - Tags: PII, PHI, PCI, GDPR, SOX, SOC2, CMMC on Data Store nodes and Data
@@ -19,20 +19,33 @@ obvious from the code alone.
      PCI's CDE/Connected distinction propagates correctly too (only the
      directly-tagged element is CDE; everything it reaches becomes
      Connected, never upgraded back to CDE by proximity) — this was a real
-     gap caught by the user and fixed mid-release.
+     gap caught by the user and fixed mid-release. Confirmed working live
+     after the user re-checked their source Data Store still had PCI set.
    - Surfacing: canvas overlay badges, Table view already covered by
      Release 4's Zone chip pattern, Threats tab list dots + detail chips
      (added after the user noticed tags weren't visible there — the canvas
      overlay toggle only ever gated the diagram badge, not other views).
    - Feeds STRIDE descriptions (with a per-element freeform compliance note
      field, e.g. "Tier 2 PCI asset — additional review required") and DREAD
-     scoring (Information Disclosure, Tampering, *and* Repudiation — the
-     last one added after the user caught a real gap: SOX/CMMC are
-     fundamentally about audit-trail accountability, so a compliance-tagged
-     asset scoring "default" on Repudiation was a real miss).
-   - DREAD score suggestions are now fully explainable: hover "Why these
-     scores?" next to the DREAD header shows every field's base score plus
-     every named adjustment that applied, in one consolidated card.
+     scoring on every category compliance scope actually affects —
+     Information Disclosure, Tampering, and Repudiation — kept consistent
+     between the two: whichever categories the DREAD engine bumps for
+     compliance scope, the description text explains why too (found and
+     fixed a real gap where Repudiation's *score* had been extended but its
+     *description* hadn't, same for Tampering on data stores/flows).
+   - DREAD score suggestions are fully explainable and now *reliably
+     accurate*: a single "Why these scores?" hover shows every field's base
+     score plus every named adjustment. The breakdown is frozen onto the
+     threat at the same moment its score is (`Threat.dreadBreakdown`)
+     instead of being recomputed live against the current diagram — a real
+     bug the user caught (hover said Damage should be 6, the field said 4)
+     because the live recompute was explaining a newer diagram state than
+     the one that actually produced the frozen score. Score + breakdown now
+     also stay live-refreshing on every Regenerate Threats until a human
+     actually edits/confirms a field (`dreadNeedsReview` is the gate, same
+     flag as before, just now controlling *recomputation* too and not just
+     the visual badge) — previously a score froze permanently the instant
+     it was first suggested even if nobody had looked at it yet.
    - Explicitly **not** built, after the user asked for a sanity check:
      auto-finalizing DREAD scores without human review, a generic
      compliance-wide numeric tier system, and inferring score adjustments
@@ -153,7 +166,7 @@ CustomStencil { id, name, elementType, defaults?, customFields?[], hiddenFieldKe
 CustomFieldDef { key, label, type('text'|'boolean'|'select'), options? }
 Threat { id, ruleId, targetType, targetId, targetLabel, componentType?, category(S/T/R/I/D/E),
   title, description, status, source, notes?, dread?{damage,reproducibility,exploitability,
-  affectedUsers,discoverability}, dreadNeedsReview?, createdAt }
+  affectedUsers,discoverability}, dreadBreakdown?[{key,label,amount}], dreadNeedsReview?, createdAt }
 ```
 `attributes` on both nodes and edges holds the full MS-TMT security schema
 (`src/canvas/mstmAttributes.ts`) — see "MS-TMT security attributes" below.
@@ -481,6 +494,38 @@ across all 7 tags (see PCI reasoning above); and inferring DREAD adjustments
 from the freeform compliance-note text (unreliable text-parsing dressed up
 as scoring logic — the note is descriptive context for a human reader, not
 a machine-readable signal).
+
+**DREAD breakdown persistence fix (4th refinement round)** — the live
+"Why these scores?" hover from the round above had a real bug: it called
+`explainDreadScore(threat, diagram)` fresh every time it opened, against
+whatever the diagram looks like *right now*. A threat's `dread` score,
+though, is frozen the first time it's generated and never touched again
+(`Canvas.tsx`'s `handleRegenerateThreats`) — so once compliance tags got
+added to an element *after* one of its threats already existed, the hover
+started explaining a newer diagram state than the one that actually
+produced the still-displayed number (user caught this exactly: hover said
+Damage should be 6, the field said 4). Fixed properly, not papered over:
+`DreadContribution` moved from `dreadEngine.ts` into `types/project.ts`
+(alongside `DreadScore`, which it's a breakdown of — avoids a circular
+import since `dreadEngine.ts` already imports types from there), and
+`Threat` gained `dreadBreakdown?: DreadContribution[]`, computed and frozen
+in the same spot `dread` itself is. Also tightened *when* the freeze
+happens, which was arguably a latent bug of its own: the old condition was
+`t.dread ? t : {recompute}` — meaning a score locked in permanently the
+instant it was first suggested, even if nobody had ever looked at it. New
+condition is `t.dread && !t.dreadNeedsReview ? t : {recompute}` — a
+still-unreviewed suggestion keeps refreshing (score *and* breakdown
+together) on every Regenerate Threats until a human actually edits a field
+via `changeThreatDread` (which already cleared `dreadNeedsReview`, unchanged),
+at which point it's frozen for good exactly as before. `ThreatsPanel.tsx`
+now reads `selected.dreadBreakdown` directly instead of calling
+`explainDreadScore` live — dropped its now-unnecessary `diagram` prop
+entirely. Also extended `ruleEngine.ts`'s `complianceNote()` calls to cover
+every category the DREAD engine actually bumps for compliance scope
+(Tampering on data stores/flows, Repudiation on processes/external
+entities) — found via the same investigation, since the description text
+had only ever been wired up for Information Disclosure even after
+Repudiation's *score* got the compliance treatment in the round before.
 
 **DREAD risk-level overlay coloring** — second overlay layer (see "Threat
 overlay on canvas" below for the first). `OverlayLayers` gained

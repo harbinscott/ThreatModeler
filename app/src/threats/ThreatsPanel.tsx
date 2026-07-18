@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { ComplianceTag, CustomStencil, Diagram, DreadScore, PciScope, StrideCategory, Threat, ThreatStatus } from '../types/project'
+import type { ComplianceTag, CustomStencil, DreadContribution, DreadScore, PciScope, StrideCategory, Threat, ThreatStatus } from '../types/project'
 import { findStencil } from '../canvas/stencils'
 import { COMPLIANCE_TAG_COLOR, COMPLIANCE_TAG_LABELS } from '../canvas/complianceTags'
 import { useResizablePanel } from '../canvas/useResizablePanel'
-import { dreadAverage, dreadRiskLevel, dreadTotal, DREAD_RISK_COLOR, explainDreadScore, type DreadContribution } from './dreadEngine'
+import { dreadAverage, dreadRiskLevel, dreadTotal, DREAD_RISK_COLOR } from './dreadEngine'
 import './ThreatsPanel.css'
 
 interface ThreatsPanelProps {
@@ -18,10 +18,6 @@ interface ThreatsPanelProps {
   complianceTagsByTarget?: Map<string, Set<ComplianceTag>>
   /** Effective PCI scope per target id, same gating as complianceTagsByTarget. */
   pciScopeByTarget?: Map<string, PciScope>
-  /** Needed to explain *why* a DREAD field is suggested at its current value
-   *  (the hover breakdown) — same diagram the rule/DREAD engines already run
-   *  against. */
-  diagram: Diagram
   /** Set by the canvas threat overlay ("view details" on a badge) to jump
    *  straight to that threat's detail panel, bypassing whatever filters are
    *  active. */
@@ -151,7 +147,6 @@ export function ThreatsPanel({
   customStencils = [],
   complianceTagsByTarget = EMPTY_COMPLIANCE_TAGS,
   pciScopeByTarget = EMPTY_PCI_SCOPE,
-  diagram,
   focusThreatId,
   onChangeStatus,
   onChangeNotes,
@@ -189,7 +184,7 @@ export function ThreatsPanel({
   })
   const sorted = [...filtered].sort((a, b) => a.category.localeCompare(b.category))
   const selected = threats.find((t) => t.id === selectedId) ?? null
-  const dreadBreakdown = selected ? explainDreadScore(selected, diagram) : []
+  const dreadBreakdown: DreadContribution[] = selected?.dreadBreakdown ?? []
 
   return (
     <div className="threats-layout">

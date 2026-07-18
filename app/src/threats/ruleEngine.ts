@@ -139,7 +139,7 @@ export function generateThreats(diagram: Diagram): Threat[] {
         if (cat === 'I' && attrs.sanitizesOutput === false) {
           desc += ' Output is not sanitized, increasing the chance of leaking sensitive data.'
         }
-        if (cat === 'I') desc += complianceNote(tags, pciScope)
+        if (cat === 'I' || cat === 'T' || cat === 'R') desc += complianceNote(tags, pciScope)
         threats.push(
           makeThreat(`process-${cat}`, 'node', node.id, label, cat, `${CATEGORY_NAMES[cat]} of ${label}`, desc, node.data.componentType)
         )
@@ -151,6 +151,7 @@ export function generateThreats(diagram: Diagram): Threat[] {
         if (cat === 'S' && attrs.authenticated === false) {
           desc += ' This interactor does not authenticate itself — spoofing risk is elevated.'
         }
+        if (cat === 'R') desc += complianceNote(tags, pciScope)
         threats.push(
           makeThreat(`entity-${cat}`, 'node', node.id, label, cat, `${CATEGORY_NAMES[cat]} of ${label}`, desc, node.data.componentType)
         )
@@ -180,6 +181,7 @@ export function generateThreats(diagram: Diagram): Threat[] {
         if (cat === 'T' && attrs.signed === false) {
           desc += ' Data is not signed — unauthorized modification may go undetected.'
         }
+        if (cat === 'T' && hasComplianceTags) desc += complianceNote(tags, pciScope, node.data.complianceNotes)
         if (cat === 'D' && attrs.backup === false) {
           desc += ' No backup is configured — an availability incident could cause permanent data loss.'
         }
@@ -228,7 +230,7 @@ export function generateThreats(diagram: Diagram): Threat[] {
       if (wireless) {
         desc += ` Transport is over ${edgeAttrs.physicalNetwork}, which raises interception risk.`
       }
-      if (cat === 'I') desc += complianceNote(edgeTags, edgePciScope, edge.data?.complianceNotes)
+      if (cat === 'I' || cat === 'T') desc += complianceNote(edgeTags, edgePciScope, edge.data?.complianceNotes)
       threats.push(
         makeThreat(
           crossesBoundary ? `flow-${cat}-boundary` : `flow-${cat}`,

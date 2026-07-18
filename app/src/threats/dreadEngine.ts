@@ -1,4 +1,4 @@
-import type { AttributeValue, ComplianceTag, Diagram, DreadScore, StrideCategory, Threat } from '../types/project'
+import type { AttributeValue, ComplianceTag, Diagram, DreadContribution, DreadScore, StrideCategory, Threat } from '../types/project'
 import { computeEffectiveComplianceTags } from '../canvas/complianceTags'
 
 const BASE_SCORES: Record<StrideCategory, Required<DreadScore>> = {
@@ -24,19 +24,6 @@ function clamp(n: number): number {
 }
 
 const DREAD_KEYS: (keyof DreadScore)[] = ['damage', 'reproducibility', 'exploitability', 'affectedUsers', 'discoverability']
-
-/** One named reason a DREAD field's suggested value is what it is — the
- *  base score for the STRIDE category, plus zero or more adjustments, each
- *  carrying the same "why" a human reviewer would want ("no authentication
- *  declared", "crosses a trust boundary", etc). `explainDreadScore` returns
- *  the full list; `suggestDreadScore` sums it per key — same numbers as
- *  before this was split out, just derived from one shared source instead
- *  of two separate implementations that could drift. */
-export interface DreadContribution {
-  key: keyof DreadScore
-  label: string
-  amount: number
-}
 
 function baseContributions(category: StrideCategory): DreadContribution[] {
   const base = BASE_SCORES[category]

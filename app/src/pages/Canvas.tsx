@@ -18,7 +18,7 @@ import { Inspector } from '../canvas/Inspector'
 import { DEFAULT_EDGE_DATA, edgeVisualProps } from '../canvas/edgeStyle'
 import { ThreatsPanel } from '../threats/ThreatsPanel'
 import { generateThreats, mergeThreats } from '../threats/ruleEngine'
-import { suggestDreadScore, dreadAverage, dreadRiskLevel, DREAD_RISK_COLOR, type DreadRiskLevel } from '../threats/dreadEngine'
+import { suggestDreadScore, explainDreadScore, dreadAverage, dreadRiskLevel, DREAD_RISK_COLOR, type DreadRiskLevel } from '../threats/dreadEngine'
 import { ShapeButton } from '../canvas/ShapeButton'
 import { TrustBoundaryButton, type BoundaryShapePreset } from '../canvas/TrustBoundaryButton'
 import { ExportMenu } from '../canvas/ExportMenu'
@@ -346,7 +346,20 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     setThreats((existing) => {
       const merged = mergeThreats(existing, generated)
       if (!dreadEnabled) return merged
-      return merged.map((t) => (t.dread ? t : { ...t, dread: suggestDreadScore(t, { nodes, edges }), dreadNeedsReview: true }))
+      // A threat's score is only ever frozen once a human has actually
+      // reviewed/edited it (dreadNeedsReview cleared by changeThreatDread).
+      // Until then it's still just a suggestion, so it — and its
+      // explanatory breakdown — keep refreshing against the current diagram
+      // on every regenerate, rather than freezing at first-generation time
+      // and silently drifting out of sync with the diagram as tags/attributes
+      // change afterward (the "why these scores" hover otherwise ends up
+      // explaining a different diagram state than the one that produced the
+      // still-displayed number).
+      return merged.map((t) =>
+        t.dread && !t.dreadNeedsReview
+          ? t
+          : { ...t, dread: suggestDreadScore(t, { nodes, edges }), dreadBreakdown: explainDreadScore(t, { nodes, edges }), dreadNeedsReview: true }
+      )
     })
   }
 
@@ -806,7 +819,6 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
             customStencils={project?.customStencils ?? []}
             complianceTagsByTarget={complianceTagsByTarget}
             pciScopeByTarget={pciScopeByTarget}
-            diagram={{ nodes, edges }}
             focusThreatId={focusThreatId}
             onChangeStatus={changeThreatStatus}
             onChangeNotes={changeThreatNotes}

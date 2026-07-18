@@ -150,6 +150,21 @@ export interface DreadScore {
   discoverability?: number
 }
 
+/** One named reason a DREAD field's suggested value is what it is — the
+ *  base score for the STRIDE category, plus zero or more adjustments, each
+ *  carrying the same "why" a human reviewer would want ("no authentication
+ *  declared", "crosses a trust boundary", etc). See `dreadEngine.ts`'s
+ *  `explainDreadScore`. Frozen onto `Threat.dreadBreakdown` at the same
+ *  time `dread` itself is computed, so the "why these scores" hover always
+ *  explains the number actually shown rather than silently recomputing
+ *  against however the diagram looks *now* (which could have drifted since
+ *  generation and no longer match the frozen score). */
+export interface DreadContribution {
+  key: keyof DreadScore
+  label: string
+  amount: number
+}
+
 export interface Threat {
   id: string
   ruleId: string
@@ -164,6 +179,7 @@ export interface Threat {
   source: ThreatSource
   notes?: string
   dread?: DreadScore
+  dreadBreakdown?: DreadContribution[]
   dreadNeedsReview?: boolean
   createdAt: string
 }
