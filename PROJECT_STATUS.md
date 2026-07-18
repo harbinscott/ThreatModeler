@@ -22,7 +22,20 @@ Cartograph, Warden — nothing chosen.
 
 - Working directory root: `C:\Users\harbi\OneDrive\Desktop\ThreatModeling`
 - Actual app code: `C:\Users\harbi\OneDrive\Desktop\ThreatModeling\app`
-- Not a git repo (no `git init` has been run).
+- **Git repo, pushed to GitHub**: `https://github.com/harbinscott/ThreatModeler`
+  (`main` branch). Repo root is the `ThreatModeling` folder (not `app/`), so
+  `PROJECT_STATUS.md` and `README.md` are tracked alongside `app/`. The repo
+  already had a stub "Initial commit" (README only) from the user's Ubuntu
+  machine before this session touched it — local history was based on top of
+  that commit (`git reset --soft origin/main` then commit + push), not force-pushed
+  over it, so that original commit is still in the log. Root `.gitignore`
+  excludes `.claude/` (local tool config); `app/.gitignore` (pre-existing, from
+  the Vite scaffold) excludes `node_modules`/`dist`. Git identity for this
+  machine: `harbinscott` / `harbin.scott@gmail.com` (set globally via `git
+  config --global`, this machine had none before). Push auth goes through Git
+  Credential Manager (`credential.helper=manager`, already configured
+  system-wide) — no PAT/SSH key needed, it handles the browser OAuth flow
+  itself (didn't even prompt on the first push here, likely cached).
 - Node.js 24.18.0 LTS was NOT preinstalled — installed via `winget install OpenJS.NodeJS.LTS`.
 
 ## Running it
@@ -263,6 +276,35 @@ shape-button groups (each its own glued main-button+caret pill) read as
 clearly separate rather than the caret looking like it belongs to the next
 group over.
 
+**Editor fundamentals — undo/redo, copy/paste, multi-select** —
+`src/canvas/useDiagramHistory.ts` + several `Canvas.tsx` additions. Multi-select
+uses React Flow's own built-in behavior (Shift+drag for a box-select,
+Ctrl/Cmd+click to add to selection) — now made explicit via `selectionKeyCode`/
+`multiSelectionKeyCode` props rather than relying on defaults. Undo/redo
+records a full `{nodes, edges}` snapshot via a **debounced watcher** (settles
+400ms after `nodes`/`edges` stop changing) rather than instrumenting every
+individual mutation call site — this also naturally coalesces a node drag
+into one undo step instead of one per pixel. Two ref guards prevent
+pollution: `historyInitializedRef` skips the first fire right after project
+load, `isRestoringRef` skips the fire that undo/redo's own `setNodes`/
+`setEdges` call triggers. Copy/paste is clipboard-in-memory only (`clipboardRef`,
+not the OS clipboard) — copies selected nodes plus any edge where *both* ends
+are also selected, pastes with new ids and a +40/+40 position offset, selects
+the pasted copies. All four (`Ctrl+Z`/`Ctrl+Y`/`Ctrl+C`/`Ctrl+V`) plus
+`Delete`/`Backspace` for bulk-delete are wired via one `window` keydown
+listener, scoped to the Diagram tab only and skipped entirely while a text
+input/textarea/contenteditable is focused (so Inspector fields and project
+rename keep native browser undo/typing instead of us intercepting it).
+`deleteKeyCode={null}` on `<ReactFlow>` turns off its own built-in delete
+handling so our cascade-safe version is the only path. **Bug fixed in the
+same pass**: `deleteNodeById` (single delete, used by the Table tab) never
+removed edges attached to the deleted node, leaving orphaned edges pointing
+at a nonexistent node — now cascades. `deleteSelection` was also rewritten to
+handle multiple selected nodes/edges at once (previously only ever deleted
+`nodes.find(n => n.selected)`, i.e. the first one). Undo/redo buttons live in
+the primary toolbar row, Diagram tab only, disabled when the respective stack
+is empty.
+
 **PDF export** — `src/reports/reportTemplate.ts` (`buildReportHtml`, 'summary' or
 'detailed' variant, light print-friendly theme) + `src/canvas/ExportMenu.tsx`.
 Diagram captured via `html-to-image`'s `toPng` on the `.react-flow` DOM node
@@ -286,6 +328,52 @@ Diagram captured via `html-to-image`'s `toPng` on the `.react-flow` DOM node
 3. Threats splitter drag felt "reversed and tiny" → root cause was `.threats-layout`
    missing `flex: 1`, so it wasn't filling `.canvas-body`'s width; the drag math was
    correct but referenced a box far narrower than the visible window.
+
+## Release roadmap (agreed with user — work through in this order)
+
+Grouped into batches of related work rather than one flat backlog, per user
+request ("lump similar items together in releases"). Each release should get
+its own checkpoint(s) before moving to the next, same pacing agreement as
+always.
+
+- **Release 0 — Source control** ✅ done this session. See "Git repo, pushed
+  to GitHub" above.
+- **Release 1 — Editor usability fundamentals** ✅ done and verified. See
+  "Editor fundamentals" above. One bug found during verification and fixed:
+  undo required two presses to actually go back a step (first press was a
+  no-op). Root cause: `record()` was pushing the *new* post-change state onto
+  the undo stack instead of the state from before the change, so the first
+  undo just restored what was already showing. Fixed by having
+  `useDiagramHistory` track its own "current settled state" internally
+  (`currentRef`) — `record()` now pushes the *previous* current onto the
+  stack before updating current to the new state, and `undo()`/`redo()` no
+  longer take the caller's state as a parameter at all (removes the
+  opportunity for caller/hook state to disagree). Also added a `reset()`
+  method so project-load establishes the baseline without polluting the undo
+  stack with an initial no-op entry.
+- **Release 2 — Existing backlog cleanup** (the 8 items below this section):
+  MS-TMT-parity dialogs, DREAD overlay coloring, threat screenshot,
+  parallel-edge polish, ribbon design pass, resizable-panel verification. All
+  small and mostly independent — good for quickly clearing debt.
+- **Release 3 — Data model depth**: data classification/type tags on data
+  flows (currently only Data Store nodes have this), richer
+  auth/protocol-mechanism fields (OAuth2/SAML/mTLS/JWT/API-key instead of a
+  bare boolean). Extends the existing attribute system — no new subsystems —
+  and directly sharpens STRIDE/DREAD output. Biggest bang-for-buck per the
+  user's "professional security staff" ask.
+- **Release 4 — Threat intelligence grounding**: CAPEC/CWE IDs cited on
+  generated threats, mitigation mapping to control frameworks (OWASP ASVS,
+  NIST 800-53, CIS). Bigger lift — needs a curated reference dataset — makes
+  more sense once Release 3's richer attributes exist to map from.
+- **Release 5 — Diagram scalability**: drill-down/sub-diagrams (context
+  diagram expanding into per-service detail), auto-layout (dagre/elkjs "tidy
+  up" button). Do after Release 1's editing fundamentals are solid.
+- **Release 6 — SDLC integration**: threat model versioning/diffing between
+  saves, risk-acceptance sign-off (who/when/review-by date, not just a status
+  + freeform note), push open threats to Jira/GitHub Issues as tracked work.
+- **Release 7 — Stretch** (original Phase 7 ideas, still valid): custom
+  user-defined STRIDE rules, IaC import (Terraform/CloudFormation →
+  diagram elements), "crown jewel" asset tagging for risk prioritization.
 
 ## Backlog (explicitly deferred, in rough priority order per most recent conversation)
 

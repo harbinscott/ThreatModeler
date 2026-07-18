@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -23,6 +23,7 @@ import { ShapeButton } from '../canvas/ShapeButton'
 import { ExportMenu } from '../canvas/ExportMenu'
 import { ElementsTable } from '../canvas/ElementsTable'
 import { useResizablePanel } from '../canvas/useResizablePanel'
+import { useDiagramHistory } from '../canvas/useDiagramHistory'
 import { ThreatOverlayContext } from '../canvas/ThreatOverlayContext'
 import { OverlayMenu, type OverlayLayers } from '../canvas/OverlayMenu'
 import type { CatalogEntry } from '../canvas/componentCatalog'
@@ -103,6 +104,10 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     maxMargin: 200,
   })
   const { fitView } = useReactFlow()
+  const history = useDiagramHistory()
+  const isRestoringRef = useRef(false)
+  const historyInitializedRef = useRef(false)
+  const clipboardRef = useRef<{ nodes: DiagramNode[]; edges: DiagramEdge[] } | null>(null)
 
   useEffect(() => {
     window.api.getProject(projectId).then((p) => {
@@ -121,6 +126,75 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
       setLoading(false)
     })
   }, [projectId, setNodes, setEdges])
+
+  // Debounced undo/redo snapshot: rather than instrumenting every single
+  // mutation call site (add/delete/update/connect/reverse/etc.), just watch
+  // nodes/edges and record a snapshot once changes settle for a moment. This
+  // also naturally coalesces continuous changes (dragging a node) into one
+  // undo step instead of one per pixel. Two guards: the first fire after load
+  // establishes the baseline (via reset(), not record() — that's the loaded
+  // state, not an edit to undo back to), and the fire caused by undo/redo
+  // itself restoring a snapshot is skipped entirely (isRestoringRef).
+  useEffect(() => {
+    if (loading) return
+    if (!historyInitializedRef.current) {
+      historyInitializedRef.current = true
+      history.reset(nodes, edges)
+      return
+    }
+    if (isRestoringRef.current) {
+      isRestoringRef.current = false
+      return
+    }
+    const timer = setTimeout(() => history.record(nodes, edges), 400)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, edges, loading])
+
+  function handleUndo() {
+    const restored = history.undo()
+    if (!restored) return
+    isRestoringRef.current = true
+    setNodes(restored.nodes)
+    setEdges(restored.edges)
+  }
+
+  function handleRedo() {
+    const restored = history.redo()
+    if (!restored) return
+    isRestoringRef.current = true
+    setNodes(restored.nodes)
+    setEdges(restored.edges)
+  }
+
+  function handleCopy() {
+    const selectedNodeList = nodes.filter((n) => n.selected)
+    if (selectedNodeList.length === 0) return
+    const selectedIds = new Set(selectedNodeList.map((n) => n.id))
+    // Only copy edges where both ends are also being copied — an edge to a
+    // node left behind wouldn't have anywhere valid to reattach on paste.
+    const selectedEdgeList = edges.filter((e) => selectedIds.has(e.source) && selectedIds.has(e.target))
+    clipboardRef.current = { nodes: structuredClone(selectedNodeList), edges: structuredClone(selectedEdgeList) }
+  }
+
+  function handlePaste() {
+    if (!clipboardRef.current) return
+    const idMap = new Map<string, string>()
+    const pastedNodes = clipboardRef.current.nodes.map((n) => {
+      const newId = crypto.randomUUID()
+      idMap.set(n.id, newId)
+      return { ...n, id: newId, position: { x: n.position.x + 40, y: n.position.y + 40 }, selected: true }
+    })
+    const pastedEdges = clipboardRef.current.edges.map((e) => ({
+      ...e,
+      id: crypto.randomUUID(),
+      source: idMap.get(e.source)!,
+      target: idMap.get(e.target)!,
+      selected: true,
+    }))
+    setNodes((nds) => [...nds.map((n) => ({ ...n, selected: false })), ...pastedNodes])
+    setEdges((eds) => [...eds.map((e) => ({ ...e, selected: false })), ...pastedEdges])
+  }
 
   const onConnect = useCallback(
     (connection: Connection) =>
@@ -166,6 +240,9 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
 
   function deleteNodeById(id: string) {
     setNodes((nds) => nds.filter((n) => n.id !== id))
+    // Cascade-delete: an edge left pointing at a node that no longer exists
+    // would be an orphan React Flow can't render.
+    setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id))
   }
 
   function deleteEdgeById(id: string) {
@@ -265,13 +342,19 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     setOverlayLayers((layers) => ({ ...layers, [key]: !layers[key] }))
   }
 
-  const selectedNode = useMemo(() => nodes.find((n) => n.selected), [nodes])
-  const selectedEdge = useMemo(() => edges.find((e) => e.selected), [edges])
-  const selection = selectedNode
-    ? ({ kind: 'node', node: selectedNode } as const)
-    : selectedEdge
-      ? ({ kind: 'edge', edge: selectedEdge } as const)
-      : null
+  const selectedNodes = useMemo(() => nodes.filter((n) => n.selected), [nodes])
+  const selectedEdges = useMemo(() => edges.filter((e) => e.selected), [edges])
+  const selectedNode = selectedNodes[0]
+  const selectedEdge = selectedEdges[0]
+  // Inspector only makes sense for a single selected element — with multiple
+  // selected, "which one's properties are you editing" is ambiguous, so it
+  // just hides instead of arbitrarily showing the first.
+  const selection =
+    selectedNodes.length + selectedEdges.length !== 1
+      ? null
+      : selectedNode
+        ? ({ kind: 'node', node: selectedNode } as const)
+        : ({ kind: 'edge', edge: selectedEdge } as const)
 
   function updateNode(id: string, patch: Partial<DiagramNode['data']>) {
     setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
@@ -306,8 +389,13 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
   }
 
   function deleteSelection() {
-    if (selectedNode) setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id))
-    if (selectedEdge) setEdges((eds) => eds.filter((e) => e.id !== selectedEdge.id))
+    if (selectedNodes.length === 0 && selectedEdges.length === 0) return
+    const deletedNodeIds = new Set(selectedNodes.map((n) => n.id))
+    const deletedEdgeIds = new Set(selectedEdges.map((e) => e.id))
+    setNodes((nds) => nds.filter((n) => !deletedNodeIds.has(n.id)))
+    // Cascade: also drop edges attached to a deleted node even if the edge
+    // itself wasn't selected (e.g. box-selecting a node without its edges).
+    setEdges((eds) => eds.filter((e) => !deletedEdgeIds.has(e.id) && !deletedNodeIds.has(e.source) && !deletedNodeIds.has(e.target)))
   }
 
   function clearSelection() {
@@ -324,6 +412,53 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     setEdges((eds) => eds.map((e) => ({ ...e, selected: e.id === id })))
     setNodes((nds) => nds.map((n) => ({ ...n, selected: false })))
   }
+
+  // Keyboard shortcuts for the diagram editor — undo/redo/copy/paste/delete.
+  // Only active on the Diagram tab, and skipped entirely while a text input
+  // is focused (Inspector fields, project rename, etc.) so those keep
+  // their normal browser/native undo and typing behavior instead of us
+  // stealing the keystroke.
+  useEffect(() => {
+    if (view !== 'diagram') return
+
+    function isEditableTarget(target: EventTarget | null) {
+      if (!(target instanceof HTMLElement)) return false
+      return target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+    }
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (isEditableTarget(e.target)) return
+      const ctrlOrCmd = e.ctrlKey || e.metaKey
+      if (!ctrlOrCmd) {
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          e.preventDefault()
+          deleteSelection()
+        }
+        return
+      }
+      const key = e.key.toLowerCase()
+      if (key === 'z' && e.shiftKey) {
+        e.preventDefault()
+        handleRedo()
+      } else if (key === 'z') {
+        e.preventDefault()
+        handleUndo()
+      } else if (key === 'y') {
+        e.preventDefault()
+        handleRedo()
+      } else if (key === 'c') {
+        e.preventDefault()
+        handleCopy()
+      } else if (key === 'v') {
+        e.preventDefault()
+        handlePaste()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, nodes, edges, selectedNodes, selectedEdges])
 
   if (loading || !project) {
     return <div className="canvas-page__loading">Loading diagram…</div>
@@ -398,6 +533,28 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
             )}
           </div>
           <div className="canvas-toolbar__actions">
+            {view === 'diagram' && (
+              <>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={handleUndo}
+                  disabled={!history.canUndo}
+                  title="Undo (Ctrl+Z)"
+                >
+                  ↺
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={handleRedo}
+                  disabled={!history.canRedo}
+                  title="Redo (Ctrl+Y)"
+                >
+                  ↻
+                </button>
+              </>
+            )}
             <ExportMenu onExport={handleExport} exporting={exporting} />
             <button type="button" className="btn btn--primary" onClick={handleSave} disabled={saveState === 'saving'}>
               {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved ✓' : 'Save'}
@@ -456,6 +613,9 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
                   edgeTypes={edgeTypes}
                   defaultEdgeOptions={{ type: 'floating' }}
                   connectionMode={ConnectionMode.Loose}
+                  selectionKeyCode="Shift"
+                  multiSelectionKeyCode={['Meta', 'Control']}
+                  deleteKeyCode={null}
                   fitView
                   colorMode="dark"
                 >
