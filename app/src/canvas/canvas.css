@@ -351,6 +351,30 @@
   padding-inline: 1.4rem;
 }
 
+.dfd-node--mitigation {
+  border: none;
+  background: none;
+  padding-inline: 1.6rem;
+}
+
+.dfd-node--mitigation__shape {
+  position: absolute;
+  inset: 0;
+  border: 1.5px solid #10b981;
+  background: var(--surface);
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+}
+
+/* The label is a plain (non-positioned) span, which the default CSS
+   painting order puts *behind* the shape layer's absolutely-positioned
+   background — without this it'd be invisible. Handles/badges already
+   position themselves absolutely (own stylesheets), so they don't need
+   this and it's deliberately not applied to them. */
+.dfd-node--mitigation__label {
+  position: relative;
+  z-index: 1;
+}
+
 .dfd-node--selected {
   box-shadow: 0 0 0 2px var(--accent);
 }

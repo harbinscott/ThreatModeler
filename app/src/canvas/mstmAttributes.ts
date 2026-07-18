@@ -211,6 +211,28 @@ export function dataFlowSecurityFields(): AttributeFieldDef[] {
   ]
 }
 
+/** Kept as a reference list (not rendered directly) — stencils in `stencils.ts`
+ *  set `mitigationType` via their `defaults`, same pattern as `processType`. */
+export const MITIGATION_TYPE_OPTIONS = ['Generic Mitigation Control', 'Firewall', 'WAF', 'IDS/IPS']
+
+/** A mitigation's declared properties are read by `ruleEngine.ts`/`dreadEngine.ts`
+ *  for any data flow whose *source* is this node — see `mitigationContributions()`
+ *  in `dreadEngine.ts` for why only the downstream edge benefits, not the
+ *  protected node itself. `rulesUpToDate === false` explicitly suppresses the
+ *  `blocksUnauthorizedTraffic`/`inspectsPayload` benefit elsewhere — a control
+ *  with a stale ruleset shouldn't get credit for filtering it may no longer do
+ *  reliably. Deliberately no "terminates TLS" field: TLS termination splits
+ *  trust rather than reducing risk, so it wouldn't have a clean, defensible
+ *  scoring direction. */
+export function mitigationSecurityFields(): AttributeFieldDef[] {
+  return [
+    { key: 'blocksUnauthorizedTraffic', label: 'Blocks unauthorized traffic', type: 'boolean' },
+    { key: 'inspectsPayload', label: 'Inspects payload / content', type: 'boolean' },
+    { key: 'logsTraffic', label: 'Logs traffic', type: 'boolean' },
+    { key: 'rulesUpToDate', label: 'Rules / signatures up to date', type: 'boolean' },
+  ]
+}
+
 export function securityFieldsFor(elementType: ElementType): AttributeFieldDef[] {
   switch (elementType) {
     case 'process':
@@ -219,6 +241,8 @@ export function securityFieldsFor(elementType: ElementType): AttributeFieldDef[]
       return dataStoreSecurityFields()
     case 'external-entity':
       return externalInteractorSecurityFields()
+    case 'mitigation':
+      return mitigationSecurityFields()
     default:
       return []
   }

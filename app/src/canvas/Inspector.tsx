@@ -567,6 +567,20 @@ function NodeInspector({
         </label>
       )}
 
+      {node.data.elementType === 'mitigation' && (
+        <label
+          className="inspector__field inspector__field--checkbox"
+          title="When on, dropping or dragging this node onto an existing flow's path splices it inline (source → this → target), carrying over that flow's style/label/properties/compliance data. Turn off for a mitigation you want positioned near a path without absorbing it."
+        >
+          <span>Auto-Attach Connections</span>
+          <input
+            type="checkbox"
+            checked={node.data.mitigationAutoAttach !== false}
+            onChange={(e) => onUpdate(node.id, { mitigationAutoAttach: e.target.checked })}
+          />
+        </label>
+      )}
+
       {stencilOptions.length > 0 && (
         <div className="inspector__field">
           <span>Type</span>

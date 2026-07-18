@@ -9,6 +9,7 @@ import {
   useEdgesState,
   useReactFlow,
   type Connection,
+  type OnNodeDrag,
 } from '@xyflow/react'
 import { toPng } from 'html-to-image'
 import '@xyflow/react/dist/style.css'
@@ -28,6 +29,7 @@ import { useDiagramHistory } from '../canvas/useDiagramHistory'
 import { ThreatOverlayContext } from '../canvas/ThreatOverlayContext'
 import { OverlayMenu, type OverlayLayers } from '../canvas/OverlayMenu'
 import { findStencil, type StencilDef, type StencilOption } from '../canvas/stencils'
+import { attachMitigationToCrossingFlows } from '../canvas/mitigationAttach'
 import { buildReportHtml, type ReportVariant } from '../reports/reportTemplate'
 import { PastaWorkflow } from '../pasta/PastaWorkflow'
 import { emptyPastaData, normalizePasta } from '../pasta/pastaDefaults'
@@ -253,6 +255,20 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
         },
       ]),
     [setEdges]
+  )
+
+  // Dropping (or re-dragging) a mitigation node onto an existing flow's path
+  // splices it inline — see mitigationAttach.ts. Fires on every drag stop,
+  // not just placement, so moving a mitigation later can pick up a newly
+  // relevant crossing too; the per-node "Auto-attach" checkbox is the
+  // escape hatch for a mitigation the user wants to position near a path
+  // without absorbing it.
+  const onNodeDragStop: OnNodeDrag<DiagramNode> = useCallback(
+    (_event, node) => {
+      const spliced = attachMitigationToCrossingFlows(node, { nodes, edges })
+      if (spliced) setEdges(spliced)
+    },
+    [nodes, edges, setEdges]
   )
 
   function addShape(elementType: ElementType, preset?: StencilOption) {
@@ -704,7 +720,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
                 <div className="canvas-toolbar__group">
                   <span className="canvas-toolbar__group-label">Add element</span>
                   <div className="canvas-toolbar__palette">
-                    {(['process', 'external-entity', 'data-store'] as ElementType[]).map((type) => (
+                    {(['process', 'external-entity', 'data-store', 'mitigation'] as ElementType[]).map((type) => (
                       <ShapeButton
                         key={type}
                         elementType={type}
@@ -754,6 +770,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
                   onNodesChange={onNodesChange}
                   onEdgesChange={onEdgesChange}
                   onConnect={onConnect}
+                  onNodeDragStop={onNodeDragStop}
                   nodeTypes={nodeTypes}
                   edgeTypes={edgeTypes}
                   defaultEdgeOptions={{ type: 'floating' }}

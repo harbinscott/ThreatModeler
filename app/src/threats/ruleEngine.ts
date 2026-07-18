@@ -82,6 +82,29 @@ function dataStoreDescription(cat: StrideCategory, label: string): string {
   }
 }
 
+/** A mitigation control (firewall/WAF/IDS-IPS) is itself a target, not just
+ *  something that protects other targets — all 6 STRIDE categories apply to
+ *  its own management/operation (can its config be tampered with, can it be
+ *  knocked offline to fail open, etc). Its *protective* effect on the flows
+ *  passing through it is handled separately, in the edge loop below and in
+ *  dreadEngine.ts's `mitigationContributions`. */
+function mitigationDescription(cat: StrideCategory, label: string): string {
+  switch (cat) {
+    case 'S':
+      return `Could an attacker impersonate a legitimate administrator of ${label} to alter its configuration?`
+    case 'T':
+      return `Could an attacker tamper with ${label}'s rules or signatures, weakening the protection it provides?`
+    case 'R':
+      return `Can changes to ${label}'s configuration be made without an attributable, verifiable record?`
+    case 'I':
+      return `Could ${label}'s logs or configuration leak sensitive information about the environment it protects?`
+    case 'D':
+      return `Could ${label} be overwhelmed or disabled, removing the protection it provides (fail-open)?`
+    case 'E':
+      return `Could an attacker gain elevated access to ${label}'s management plane and disable its protections?`
+  }
+}
+
 function complianceTagList(tags: Set<ComplianceTag>, pciScope: PciScope | undefined): string {
   return [...tags]
     .sort()
@@ -189,6 +212,21 @@ export function generateThreats(diagram: Diagram): Threat[] {
           makeThreat(`datastore-${cat}`, 'node', node.id, label, cat, `${CATEGORY_NAMES[cat]} of ${label}`, desc, node.data.componentType)
         )
       })
+    } else if (node.data.elementType === 'mitigation') {
+      const attrs = node.data.attributes ?? {}
+      ;(['S', 'T', 'R', 'I', 'D', 'E'] as StrideCategory[]).forEach((cat) => {
+        let desc = mitigationDescription(cat, label)
+        if (cat === 'T' && attrs.rulesUpToDate === false) {
+          desc += ' Its rules/signatures are not confirmed current — signature-based protections may not catch newer attack patterns.'
+        }
+        if (cat === 'R' && attrs.logsTraffic === false) {
+          desc += ' No traffic logging is declared for this control — bypass or tampering attempts would go unnoticed.'
+        }
+        if (cat === 'I' || cat === 'T' || cat === 'R') desc += complianceNote(tags, pciScope, node.data.complianceNotes)
+        threats.push(
+          makeThreat(`mitigation-${cat}`, 'node', node.id, label, cat, `${CATEGORY_NAMES[cat]} of ${label}`, desc, node.data.componentType)
+        )
+      })
     }
   }
 
@@ -206,6 +244,8 @@ export function generateThreats(diagram: Diagram): Threat[] {
 
     const edgeAttrs = edge.data?.attributes ?? {}
     const wireless = ['Wifi', 'Bluetooth', '2G-4G'].includes(edgeAttrs.physicalNetwork as string)
+    const sourceMitigation = source.data.elementType === 'mitigation' ? source : undefined
+    const sourceMitigationAttrs = sourceMitigation?.data.attributes ?? {}
     const edgeTags = new Set<ComplianceTag>([...(complianceByNode.get(source.id) ?? []), ...(complianceByNode.get(target.id) ?? [])])
     const edgePciScope =
       pciScopeByNode.get(source.id) === 'CDE' || pciScopeByNode.get(target.id) === 'CDE'
@@ -229,6 +269,9 @@ export function generateThreats(diagram: Diagram): Threat[] {
       }
       if (wireless) {
         desc += ` Transport is over ${edgeAttrs.physicalNetwork}, which raises interception risk.`
+      }
+      if (cat === 'T' && sourceMitigation && (sourceMitigationAttrs.blocksUnauthorizedTraffic === true || sourceMitigationAttrs.inspectsPayload === true)) {
+        desc += ` This flow originates from ${sourceMitigation.data.label}, a declared mitigation control — verify its rules/signatures are current and correctly scoped rather than treating this as fully resolved.`
       }
       if (cat === 'I' || cat === 'T') desc += complianceNote(edgeTags, edgePciScope, edge.data?.complianceNotes)
       threats.push(

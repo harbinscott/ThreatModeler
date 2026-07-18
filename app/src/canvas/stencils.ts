@@ -157,6 +157,27 @@ export const BUILT_IN_STENCILS: StencilDef[] = [
     elementType: 'external-entity',
     defaults: { interactorType: 'Managed Runtime', type: 'Code' },
   },
+
+  // --- Mitigation (Release 6) ---
+  { id: 'generic-mitigation', name: 'Generic Mitigation Control', elementType: 'mitigation' },
+  {
+    id: 'firewall',
+    name: 'Firewall',
+    elementType: 'mitigation',
+    defaults: { mitigationType: 'Firewall', blocksUnauthorizedTraffic: true },
+  },
+  {
+    id: 'waf',
+    name: 'WAF',
+    elementType: 'mitigation',
+    defaults: { mitigationType: 'WAF', blocksUnauthorizedTraffic: true, inspectsPayload: true },
+  },
+  {
+    id: 'ids-ips',
+    name: 'IDS/IPS',
+    elementType: 'mitigation',
+    defaults: { mitigationType: 'IDS/IPS', inspectsPayload: true, logsTraffic: true },
+  },
 ]
 
 export interface StencilOption {

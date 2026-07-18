@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { IconCircle, IconUserSquareRounded, IconDatabase, IconShield } from '@tabler/icons-react'
+import { IconCircle, IconUserSquareRounded, IconDatabase, IconShield, IconShieldCheck } from '@tabler/icons-react'
 import type { ElementType } from '../types/project'
 
 /** Shared between the ribbon toolbar (Canvas.tsx) and the Table tab's
@@ -10,6 +10,7 @@ export const SHAPE_LABELS: Record<ElementType, string> = {
   'external-entity': 'External Entity',
   'data-store': 'Data Store',
   'trust-boundary': 'Trust Boundary',
+  mitigation: 'Mitigation',
 }
 
 export const SHAPE_ICONS: Record<ElementType, ReactNode> = {
@@ -17,4 +18,5 @@ export const SHAPE_ICONS: Record<ElementType, ReactNode> = {
   'external-entity': <IconUserSquareRounded size={15} color="#2563eb" aria-hidden="true" />,
   'data-store': <IconDatabase size={15} color="#2563eb" aria-hidden="true" />,
   'trust-boundary': <IconShield size={15} color="#f59e0b" aria-hidden="true" />,
+  mitigation: <IconShieldCheck size={15} color="#10b981" aria-hidden="true" />,
 }

@@ -57,6 +57,18 @@
   letter-spacing: 0.03em;
 }
 
+/* A checkbox reads oddly under a label on its own line (the default column
+   layout every other field uses) — this modifier keeps the two side by side
+   instead. Opt-in per field rather than changed on the base class, since
+   most `.inspector__field`s are text/select inputs where the stacked label
+   is correct. */
+.inspector__field--checkbox {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
 .inspector__color-row {
   display: flex;
   align-items: center;

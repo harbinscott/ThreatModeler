@@ -24,7 +24,7 @@ interface ElementsTableProps {
 
 const TYPE_LABELS = SHAPE_LABELS
 
-const ADDABLE_TYPES: ElementType[] = ['process', 'external-entity', 'data-store']
+const ADDABLE_TYPES: ElementType[] = ['process', 'external-entity', 'data-store', 'mitigation']
 
 const ARROW_GLYPH: Record<ArrowStyle, string> = { 'one-way': '→', 'two-way': '⇄', none: '–' }
 

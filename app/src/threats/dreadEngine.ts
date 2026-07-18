@@ -83,6 +83,15 @@ function attributeContributions(threat: Threat, attrs: Record<string, AttributeV
     add('exploitability', 'Interactor does not authenticate itself', 2)
   }
 
+  // Mitigation control — weaknesses in the control itself, distinct from the
+  // *protective* effect it has on flows through it (see mitigationContributions).
+  if (attrs.rulesUpToDate === false && threat.category === 'T') {
+    add('exploitability', 'Rules/signatures not confirmed current', 2)
+  }
+  if (attrs.logsTraffic === false && threat.category === 'R') {
+    add('damage', 'No traffic logging declared — bypass attempts go unnoticed', 2)
+  }
+
   // Data flow
   if ((attrs.sourceAuthenticated === false || attrs.destinationAuthenticated === false) && threat.category === 'T') {
     add('exploitability', 'Communicating parties not mutually authenticated', 2)
@@ -131,6 +140,35 @@ function complianceContributions(threat: Threat, diagram: Diagram): DreadContrib
   ]
 }
 
+/** The first *negative* contributions in this codebase: a flow whose source
+ *  is a declared mitigation control (Release 6) gets a reduced score on
+ *  Tampering — the one category its declared properties (blocks unauthorized
+ *  traffic / inspects payload) most directly speak to. Spoofing/Information
+ *  Disclosure/DoS are deliberately left alone: there's no clean, statable
+ *  mechanism by which those properties specifically reduce *those*, same bar
+ *  Release 5's compliance bump used. Never suppresses the threat itself or
+ *  auto-resolves it — a human still has to review and close it out; this
+ *  only lowers the starting suggestion, gated on the control's ruleset being
+ *  confirmed current (`rulesUpToDate !== false`) so a stale WAF doesn't get
+ *  credit for protection it may no longer reliably provide. */
+function mitigationContributions(threat: Threat, diagram: Diagram): DreadContribution[] {
+  if (threat.targetType !== 'edge' || threat.category !== 'T') return []
+  const edge = diagram.edges.find((e) => e.id === threat.targetId)
+  const source = edge && diagram.nodes.find((n) => n.id === edge.source)
+  if (!source || source.data.elementType !== 'mitigation') return []
+  const attrs = source.data.attributes ?? {}
+  const rulesCurrent = attrs.rulesUpToDate !== false
+  const contributions: DreadContribution[] = []
+  if (attrs.blocksUnauthorizedTraffic === true && rulesCurrent) {
+    contributions.push({ key: 'exploitability', label: `${source.data.label} blocks unauthorized traffic`, amount: -2 })
+  }
+  if (attrs.inspectsPayload === true && rulesCurrent) {
+    contributions.push({ key: 'exploitability', label: `${source.data.label} inspects payload content`, amount: -1 })
+    contributions.push({ key: 'damage', label: `${source.data.label} inspects payload content`, amount: -1 })
+  }
+  return contributions
+}
+
 /** Full breakdown of why a threat's suggested DREAD score is what it is —
  *  base score plus every contributing adjustment, each labeled. Powers the
  *  per-field "why this number" hover in ThreatsPanel; `suggestDreadScore`
@@ -147,6 +185,7 @@ export function explainDreadScore(threat: Threat, diagram: Diagram): DreadContri
     ...contextContributions(threat),
     ...attributeContributions(threat, attrs),
     ...complianceContributions(threat, diagram),
+    ...mitigationContributions(threat, diagram),
   ]
 }
 

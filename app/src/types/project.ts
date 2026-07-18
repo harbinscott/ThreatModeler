@@ -6,7 +6,7 @@ export interface FrameworkSelection {
   pasta: boolean
 }
 
-export type ElementType = 'process' | 'external-entity' | 'data-store' | 'trust-boundary'
+export type ElementType = 'process' | 'external-entity' | 'data-store' | 'trust-boundary' | 'mitigation'
 
 export type AttributeValue = string | boolean
 
@@ -112,6 +112,12 @@ export interface DiagramNodeData extends Record<string, unknown> {
    *  a connected one doesn't inherit this note too, since it's specific to
    *  the element that owns it. */
   complianceNotes?: string
+  /** Mitigation nodes only. When a mitigation node is dropped/dragged onto an
+   *  existing flow's path, it auto-splices in place of the direct connection
+   *  (source -> mitigation -> target) — see `mitigationAttach.ts`. Undefined
+   *  means enabled (the default); explicit `false` opts a specific mitigation
+   *  out, for one the user wants positioned near a path without absorbing it. */
+  mitigationAutoAttach?: boolean
 }
 
 export type LineStyle = 'solid' | 'dashed' | 'dotted'

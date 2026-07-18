@@ -8,71 +8,66 @@ obvious from the code alone.
 
 ## Resume here (updated end of this session)
 
-1. **Release 5 — Smart Data Classification & Compliance Tagging — done and
-   fully verified**, including four follow-up refinement rounds from live
-   testing. See "Compliance tagging (Release 5)" under "What's built" below
-   for the full writeup. Highlights:
-   - Tags: PII, PHI, PCI, GDPR, SOX, SOC2, CMMC on Data Store nodes and Data
-     Flow edges, with PCI getting its own Connected/CDE sub-scope (not a
-     generic numeric tier — deliberately, see the writeup for why).
-   - Propagation: same-zone flood-fill, stops at a trust-boundary crossing.
-     PCI's CDE/Connected distinction propagates correctly too (only the
-     directly-tagged element is CDE; everything it reaches becomes
-     Connected, never upgraded back to CDE by proximity) — this was a real
-     gap caught by the user and fixed mid-release. Confirmed working live
-     after the user re-checked their source Data Store still had PCI set.
-   - Surfacing: canvas overlay badges, Table view already covered by
-     Release 4's Zone chip pattern, Threats tab list dots + detail chips
-     (added after the user noticed tags weren't visible there — the canvas
-     overlay toggle only ever gated the diagram badge, not other views).
-   - Feeds STRIDE descriptions (with a per-element freeform compliance note
-     field, e.g. "Tier 2 PCI asset — additional review required") and DREAD
-     scoring on every category compliance scope actually affects —
-     Information Disclosure, Tampering, and Repudiation — kept consistent
-     between the two: whichever categories the DREAD engine bumps for
-     compliance scope, the description text explains why too (found and
-     fixed a real gap where Repudiation's *score* had been extended but its
-     *description* hadn't, same for Tampering on data stores/flows).
-   - DREAD score suggestions are fully explainable and now *reliably
-     accurate*: a single "Why these scores?" hover shows every field's base
-     score plus every named adjustment. The breakdown is frozen onto the
-     threat at the same moment its score is (`Threat.dreadBreakdown`)
-     instead of being recomputed live against the current diagram — a real
-     bug the user caught (hover said Damage should be 6, the field said 4)
-     because the live recompute was explaining a newer diagram state than
-     the one that actually produced the frozen score. Score + breakdown now
-     also stay live-refreshing on every Regenerate Threats until a human
-     actually edits/confirms a field (`dreadNeedsReview` is the gate, same
-     flag as before, just now controlling *recomputation* too and not just
-     the visual badge) — previously a score froze permanently the instant
-     it was first suggested even if nobody had looked at it yet.
-   - Explicitly **not** built, after the user asked for a sanity check:
-     auto-finalizing DREAD scores without human review, a generic
-     compliance-wide numeric tier system, and inferring score adjustments
-     from the freeform note text — see the writeup for the reasoning on
-     each (audit-defensibility concerns, mostly).
-2. **Next up: Release 6 — Mitigation Elements (Firewall/WAF).** See
-   "Release roadmap" below — biggest lift of the four remaining releases in
-   this batch. The DREAD explainability breakdown built this session
-   already supports negative contributions (e.g. "-2 exploitability: WAF
-   present"), so a mitigation's score effect should slot into the existing
-   `DreadContribution` architecture once the element type exists — worth
-   keeping in mind when scoping Release 6's DREAD-integration piece.
-3. Also landed this session, small and unrelated to compliance: reordered
-   the Canvas tabs to Diagram → Table → Threats → PASTA (grouping the two
-   diagram-editing views together, per user request).
-4. Two more items came in from Release 3 testing and were folded into the
+1. **Release 6 — Mitigation Elements (Firewall/WAF) — done and fully
+   verified**, built and checkpointed in three stages across one session
+   (node/stencils, auto-attach splicing, STRIDE/DREAD integration). See
+   "Mitigation elements (Release 6)" under "What's built" below for the
+   full writeup. Highlights:
+   - New `mitigation` element type — Firewall/WAF/IDS-IPS stencils, hexagon
+     shape distinct from every other node. A real bug found and fixed mid-
+     release: the hexagon's `clip-path` was clipping its own children,
+     silently chopping off the connection handles (worst at the left/right
+     points where the shape narrows to nothing) — fixed by splitting the
+     clipped visual layer from the unclipped handles/label/badges, same
+     pattern `TrustBoundaryNode` already used for its shape layer.
+   - Auto-attach: dragging a mitigation node onto an existing flow's path
+     splices it inline (source → mitigation → target), duplicating the
+     original edge's line style/color/label/attributes/compliance data onto
+     both new segments. Matches *every* crossing flow in one drop, not just
+     the nearest, so a node dropped where multiple flows converge/diverge
+     picks up all of them at once. Per-node opt-out checkbox ("Auto-Attach
+     Connections") for a mitigation positioned near a path without
+     absorbing it — user-requested after the first pass had no way to turn
+     it off, and the checkbox label/layout was tightened once (`inspector__
+     field--checkbox` row-layout modifier, since a checkbox stacked under a
+     long label looked wrong).
+   - STRIDE: mitigation nodes generate their own 6-category threats (a
+     control is itself a target — can its config be tampered with, can it
+     be knocked offline to fail open, etc), plus a contextual note on the
+     Tampering threat of any flow leaving one.
+   - DREAD: the first **negative** `DreadContribution`s in the app — a flow
+     leaving a mitigation node gets a reduced Tampering score if `Blocks
+     unauthorized traffic`/`Inspects payload` are set, gated on `Rules/
+     signatures up to date` not being explicitly unchecked. Deliberately
+     only Tampering gets the benefit (no clean statable reason ties those
+     properties to Spoofing/Information Disclosure/DoS specifically — same
+     bar Release 5's compliance bump used). Never suppresses or
+     auto-resolves the threat itself, only adjusts the starting suggestion.
+   - PASTA: stage 3's diagram summary picks up a "Mitigation controls"
+     count automatically; stages 4/7 needed no changes since they already
+     pull generically from the STRIDE threats/DREAD scores above.
+2. **Next up: Release 7 — Threat intelligence grounding** (CAPEC/CWE IDs on
+   generated threats, mitigation mapping to control frameworks like OWASP
+   ASVS/NIST 800-53/CIS). See "Release roadmap" below — needs a curated
+   reference dataset, bigger lift than Release 6 was.
+3. Release 5 (compliance tagging) is done and fully verified — see "What's
+   built" below for the full writeup, not repeated here now that Release 6
+   is the latest work.
+4. Also landed earlier this session, small and unrelated to compliance:
+   reordered the Canvas tabs to Diagram → Table → Threats → PASTA (grouping
+   the two diagram-editing views together, per user request).
+5. Two more items came in from Release 3 testing and were folded into the
    roadmap rather than built immediately: an unsaved-changes guard (warn
    before navigating away from an edited-but-unsaved diagram) — Backlog
    item 1 below, small and a real data-safety gap — and a capped
    version-history/rollback feature, which landed in Release 9 (SDLC
    integration) since it already covered related ground
    ("versioning/diffing between saves"). Neither has been started.
-5. Two small backlog items remain from earlier sessions, both low priority,
+6. Two small backlog items remain from earlier sessions, both low priority,
    neither blocking: trust boundary shape editing *after* creation
    (currently creation-time only), and further parallel-edge endpoint
    visual polish. See Backlog below.
-6. Everything is committed and pushed to
+7. Everything is committed and pushed to
    `https://github.com/harbinscott/ThreatModeler` (`main` branch) as of the
    end of this session.
 
@@ -155,11 +150,12 @@ the terminal running `npm run electron:dev`, not DevTools.
 Project { id, name, description, frameworks{stride,dread,pasta}, diagram{nodes,edges},
   threats[], pasta?, info?{owner,contributors,reviewer,assumptions,externalDependencies},
   notes?, customStencils?[], createdAt, updatedAt }
-DiagramNodeData { label, elementType, description?, componentType?, attributes?,
+DiagramNodeData { label, elementType('process'|'external-entity'|'data-store'|'trust-boundary'|
+  'mitigation'), description?, componentType?, attributes?,
   colors?{fill,border,text}, boundaryShape?('rectangle'|'circle'|'cloud', trust-boundary only),
   boundaryType?(trust-boundary only), customFields?[], hiddenFieldKeys?[],
   complianceTags?[]('PII'|'PHI'|'PCI'|'GDPR'|'SOX'|'SOC2'|'CMMC'), pciScope?('Connected'|'CDE'),
-  complianceNotes? }
+  complianceNotes?, mitigationAutoAttach?(mitigation only, default true) }
 DiagramEdgeData { label?, lineStyle?, arrowStyle?, color?, attributes?, customFields?[], hiddenFieldKeys?[],
   complianceTags?[], pciScope?, complianceNotes? }
 CustomStencil { id, name, elementType, defaults?, customFields?[], hiddenFieldKeys?[] } — see stencils.ts
@@ -527,6 +523,105 @@ entities) — found via the same investigation, since the description text
 had only ever been wired up for Information Disclosure even after
 Repudiation's *score* got the compliance treatment in the round before.
 
+**Mitigation elements (Release 6)** — new `mitigation` `ElementType`
+(`types/project.ts`), stencils in `stencils.ts` (Generic Mitigation Control,
+Firewall, WAF, IDS/IPS — defaults pre-check relevant properties, e.g.
+Firewall sets `blocksUnauthorizedTraffic: true`). Security fields
+(`mstmAttributes.ts`'s `mitigationSecurityFields()`): `blocksUnauthorized
+Traffic`, `inspectsPayload`, `logsTraffic`, `rulesUpToDate` — deliberately no
+"terminates TLS" field, since TLS termination splits trust rather than
+reducing risk and wouldn't have a clean scoring direction. `Inspector.tsx`
+needed **no changes** to show these — `NodeInspector` already reads
+`securityFieldsFor(node.data.elementType)` and `stencilsForType(...)`
+generically, so a new element type's Type picker and Security Properties
+section just work once the type exists.
+
+`MitigationNode.tsx` renders a green hexagon (`clip-path: polygon(...)`) —
+**a real bug found and fixed mid-release**: `clip-path` clips *all* painted
+content of the element it's on, including overflowing absolutely-positioned
+children, not just the element's own box. Putting it directly on the same
+div as `FourWayHandles` silently chopped the connection handles off (worst
+at the left/right points, where the hexagon narrows to a single vertex),
+making the node effectively undraggable-into — user reported this as "auto
+attach isn't working" before realizing (correctly) it was actually a
+different, not-yet-built feature they were also expecting. Fixed by giving
+the hexagon its own `inset:0` absolutely-positioned inner layer, leaving
+handles/label/badges as unclipped children of the outer node div — same
+split `TrustBoundaryNode.tsx` already used for its own shape layer. The
+label (`EditableLabel`, a plain non-positioned `<span>`) needed an explicit
+`position:relative; z-index:1` (`.dfd-node--mitigation__label`) since CSS's
+default painting order puts non-positioned content *behind* any absolutely-
+positioned sibling regardless of DOM order — without it the hexagon's fill
+would've painted over the label text.
+
+Auto-attach splicing (`src/canvas/mitigationAttach.ts`,
+`attachMitigationToCrossingFlows()`): fires from a new `onNodeDragStop`
+handler in `Canvas.tsx` on every drag-stop of a mitigation node (not just
+first placement). For each existing edge not already touching the dragged
+node, computes the point-to-segment distance from the node's center to the
+line between its source/target node centers; any edge within
+`ATTACH_THRESHOLD_PX` (40px) is spliced — deliberately *every* matching
+edge, not just the closest, so a node dropped where multiple flows
+converge/diverge (fan-in/fan-out) absorbs all of them from one drop, per the
+roadmap's "including fan-in from multiple sources" requirement. Each spliced
+edge is replaced by two new ones (source→mitigation, mitigation→target),
+each carrying its own independent copy of the original edge's full `data`
+(line style/color/label/attributes/customFields/complianceTags/
+complianceNotes) — copied, not shared, so editing one segment's compliance
+tags later can't mutate the other's — with visual props recomputed fresh via
+`edgeVisualProps()` rather than copied, matching every other edge-creating
+function in the codebase. Per-node opt-out:
+`DiagramNodeData.mitigationAutoAttach` (default true, i.e. enabled unless
+explicitly set `false`), a checkbox in `Inspector.tsx` gated on
+`elementType === 'mitigation'` — added after the user asked for an escape
+hatch, and its label was shortened to "Auto-Attach Connections" with a new
+`.inspector__field--checkbox` row-layout CSS modifier after the first
+version (long label stacked above a lone checkbox, the default layout every
+other `.inspector__field` uses) looked wrong.
+
+STRIDE (`ruleEngine.ts`): mitigation nodes generate all 6 categories via a
+new `mitigationDescription()` — a control is a target in its own right (can
+its config be tampered with, can it be knocked offline to fail open, can an
+attacker reach its management plane), not just something that protects
+other targets. `rulesUpToDate === false` adds a caution sentence to its own
+Tampering threat, `logsTraffic === false` to its own Repudiation threat.
+Separately, any data-flow edge whose *source* is a mitigation node gets a
+contextual sentence on its Tampering threat noting the traffic already
+passed through a declared control — phrased as something to verify, not as
+"resolved," consistent with never having the tool claim a threat is closed
+without human review.
+
+DREAD (`dreadEngine.ts`): two additions, kept conceptually separate.
+`attributeContributions()` gained mitigation-specific *penalties* on the
+control's own threats (stale rules → +2 exploitability on its Tampering; no
+logging → +2 damage on its Repudiation) — same mechanism every other
+attribute-driven adjustment already uses. New `mitigationContributions()` is
+the first source of **negative** contributions in the app: for an edge
+threat whose category is Tampering and whose source node is a mitigation,
+`blocksUnauthorizedTraffic`/`inspectsPayload` each subtract from
+exploitability/damage — gated on `rulesUpToDate !== false` so a stale
+control doesn't get credit for protection it may no longer reliably
+provide. Deliberately restricted to Tampering only (not Spoofing/
+Information Disclosure/DoS) — same "no clean statable mechanism, so no
+blanket bump" bar Release 5's compliance scoring used — and never
+suppresses or auto-resolves the threat itself, only lowers the starting
+suggestion a human still has to review. The existing sum-all-then-
+clamp-once architecture (`suggestDreadScore`) handles negative amounts
+correctly by construction — no changes needed there, confirming the
+Release 5 note that the `DreadContribution` shape was already built to
+support this.
+
+PASTA (`PastaWorkflow.tsx`): stage 3's "From your diagram" summary gained a
+"Mitigation controls" row (`decompositionCounts.mitigation`); stages 4/7
+needed no changes since they already pull generically from the STRIDE
+threats list / DREAD scores rather than being element-type-aware
+themselves.
+
+`diagnostics.ts`'s "flow doesn't touch a Process" message was widened to
+also accept a mitigation as either endpoint — a flow entirely between, say,
+a Data Store and a mitigation is normal now that mitigations exist, and
+was a false positive under the original process-only check.
+
 **DREAD risk-level overlay coloring** — second overlay layer (see "Threat
 overlay on canvas" below for the first). `OverlayLayers` gained
 `dreadRiskColoring`; `ThreatOverlayContext` gained `riskColorByTarget` (target
@@ -792,16 +887,18 @@ already built:
   originally scoped as "Release 3" before this re-sequencing (data
   classification/type tags on data flows). See "Compliance tagging (Release
   5)" under "What's built" for the full writeup.
-- **Release 6 — Mitigation Elements (Firewall/WAF)** *(user items 6 + 7)*:
-  biggest lift of the seven. A new node type droppable directly onto an
-  edge, auto-splitting existing connections (including fan-in from multiple
-  sources) into hub-and-spoke through the mitigation, with an explicit
-  override/disconnect for traffic that legitimately bypasses it. Its
-  security properties feed the existing `ruleEngine.ts`/`dreadEngine.ts`
-  attribute-adjustment pattern (same mechanism already built for MS-TMT
-  attributes) to suppress/downgrade STRIDE threats and adjust DREAD scores
-  when present. Sequenced last — needs Release 3's property system and a
-  settled connection model from Release 4.
+- **Release 6 — Mitigation Elements (Firewall/WAF)** ✅ done and verified
+  this session. *(user items 6 + 7)*: new `mitigation` node type
+  (Firewall/WAF/IDS-IPS stencils), auto-attach splicing when dropped/dragged
+  onto an existing flow's path (matches multiple converging flows in one
+  drop, per-node opt-out checkbox), full STRIDE threat generation for the
+  control itself, and the first negative `DreadContribution`s in the app
+  (reduced Tampering on flows leaving a mitigation, gated on its ruleset
+  being current). "Override/disconnect for bypass traffic" turned out to
+  need no new mechanic — an edge simply not routed through the mitigation
+  node already reads as a bypass, no separate toggle required. See
+  "Mitigation elements (Release 6)" under "What's built" for the full
+  writeup.
 - **Release 7 — Threat intelligence grounding**: CAPEC/CWE IDs cited on
   generated threats, mitigation mapping to control frameworks (OWASP ASVS,
   NIST 800-53, CIS). Bigger lift — needs a curated reference dataset — makes

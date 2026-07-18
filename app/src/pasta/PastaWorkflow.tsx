@@ -41,7 +41,7 @@ export function PastaWorkflow({ pasta, onChange, diagram, threats, dreadEnabled 
   }
 
   const decompositionCounts = useMemo(() => {
-    const counts: Record<string, number> = { process: 0, 'external-entity': 0, 'data-store': 0, 'trust-boundary': 0 }
+    const counts: Record<string, number> = { process: 0, 'external-entity': 0, 'data-store': 0, 'trust-boundary': 0, mitigation: 0 }
     for (const n of diagram.nodes) counts[n.data.elementType] = (counts[n.data.elementType] ?? 0) + 1
     return counts
   }, [diagram])
@@ -178,6 +178,10 @@ export function PastaWorkflow({ pasta, onChange, diagram, threats, dreadEnabled 
               <div className="pasta-summary__row">
                 <span>Trust boundaries</span>
                 <strong>{decompositionCounts['trust-boundary']}</strong>
+              </div>
+              <div className="pasta-summary__row">
+                <span>Mitigation controls</span>
+                <strong>{decompositionCounts.mitigation}</strong>
               </div>
               <div className="pasta-summary__row">
                 <span>Data flows</span>

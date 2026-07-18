@@ -37,7 +37,8 @@ export function getDiagramMessages(diagram: Diagram, threats: Threat[]): Diagram
     const target = diagram.nodes.find((n) => n.id === edge.target)
     if (!source || !target) continue
     const label = edge.data?.label || `${source.data.label} to ${target.data.label}`
-    if (source.data.elementType !== 'process' && target.data.elementType !== 'process') {
+    const touchesProcessOrMitigation = (t: string) => t === 'process' || t === 'mitigation'
+    if (!touchesProcessOrMitigation(source.data.elementType) && !touchesProcessOrMitigation(target.data.elementType)) {
       messages.push({
         severity: 'info',
         text: `Flow "${label}" doesn't touch a Process — data usually shouldn't move directly between two data stores or external entities.`,
