@@ -1,0 +1,394 @@
+.canvas-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.canvas-page__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  color: var(--text-muted);
+}
+
+.canvas-toolbar {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.canvas-toolbar__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  padding: 0.6rem 1rem;
+}
+
+.canvas-toolbar__row--primary {
+  justify-content: space-between;
+}
+
+.canvas-toolbar__row--ribbon {
+  border-top: 1px solid var(--border);
+}
+
+.canvas-toolbar__ribbon-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.canvas-toolbar__ribbon-toggle:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.canvas-diagram-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.canvas-drawer {
+  position: relative;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+}
+
+.resize-handle-x {
+  width: 5px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: transparent;
+}
+
+.resize-handle-x:hover,
+.resize-handle-x:active {
+  background: var(--accent);
+}
+
+.resize-handle-y {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: row-resize;
+  background: transparent;
+  z-index: 5;
+}
+
+.resize-handle-y:hover,
+.resize-handle-y:active {
+  background: var(--accent);
+}
+
+.canvas-drawer__handle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.canvas-drawer__handle:hover {
+  color: var(--accent);
+}
+
+.canvas-drawer__caret {
+  display: inline-block;
+  transition: transform 0.15s ease;
+  transform: rotate(-90deg);
+}
+
+.canvas-drawer__caret--open {
+  transform: rotate(0deg);
+}
+
+.canvas-drawer__body {
+  border-top: 1px solid var(--border);
+  display: flex;
+}
+
+.canvas-toolbar__title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.canvas-toolbar__title h1 {
+  font-size: 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: text;
+}
+
+.canvas-toolbar__title-input {
+  font-size: 1rem;
+  font-weight: 600;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 0.15rem 0.4rem;
+  font-family: inherit;
+  min-width: 140px;
+}
+
+.canvas-toolbar__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.canvas-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.tab {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.4rem 0.7rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tab--active {
+  background: var(--surface-active);
+  color: var(--accent);
+}
+
+.canvas-toolbar__palette {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.shape-button {
+  position: relative;
+  display: flex;
+}
+
+.shape-button__main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.shape-button__caret {
+  border-left: none;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  padding: 0 0.45rem;
+  font-size: 0.65rem;
+}
+
+.shape-button__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 180px;
+  white-space: nowrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.25rem;
+  margin: 0;
+  list-style: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.shape-button__menu--right {
+  left: auto;
+  right: 0;
+}
+
+.shape-button__menu button {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 0.82rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.shape-button__menu button:hover {
+  background: var(--surface-active);
+  color: var(--accent);
+}
+
+.overlay-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 5px;
+  font-size: 0.82rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.overlay-menu__item:hover {
+  background: var(--surface-active);
+}
+
+.canvas-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.canvas-flow-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.dfd-node {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  min-width: 120px;
+  text-align: center;
+}
+
+.dfd-node--process {
+  border: 1.5px solid var(--accent);
+  border-radius: 999px;
+}
+
+.dfd-node--entity {
+  border: 1.5px solid var(--text-muted);
+  border-radius: 2px;
+}
+
+.dfd-node--store {
+  border-top: 1.5px solid var(--text-muted);
+  border-bottom: 1.5px solid var(--text-muted);
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+  padding-inline: 1.4rem;
+}
+
+.dfd-node--selected {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.dfd-node--boundary {
+  width: 100%;
+  height: 100%;
+  border: 1.5px dashed #f59e0b;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.04);
+  padding: 0;
+}
+
+.dfd-node--boundary__label {
+  position: absolute;
+  top: -0.65rem;
+  left: 0.7rem;
+  background: var(--bg);
+  padding: 0 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #f59e0b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  pointer-events: auto;
+  cursor: grab;
+}
+
+/* Trust boundary body only intercepts clicks on its label (drag handle);
+   everywhere else, clicks pass through to whatever node is underneath.
+   Targets React Flow's built-in type-based wrapper class so this applies
+   to every trust-boundary node regardless of when it was created/saved.
+   !important + doubled selector: React Flow's own stylesheet sets
+   `.react-flow__node { pointer-events: all }` at equal specificity, and
+   Vite's dev-mode injection order for a pre-bundled dependency isn't
+   guaranteed to land after ours, so relying on cascade order alone is
+   unreliable here. */
+.react-flow__node.react-flow__node-trust-boundary {
+  pointer-events: none !important;
+}
+
+.editable-label-input {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
+  padding: 0.1rem 0.3rem;
+  width: 100%;
+}
+
+.node-handle {
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+  border: 1px solid var(--bg);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.dfd-node:hover .node-handle,
+.dfd-node--selected .node-handle {
+  opacity: 1;
+}
+
+.boundary-resize-handle {
+  width: 8px;
+  height: 8px;
+  background: #f59e0b;
+  border: none;
+}
+
+.boundary-resize-line {
+  border-color: #f59e0b;
+}

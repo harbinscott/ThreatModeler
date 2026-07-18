@@ -1,0 +1,81 @@
+.threat-badge-wrap {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  z-index: 6;
+}
+
+.threat-badge {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 2px solid var(--bg);
+  color: #1a1a1a;
+  font-size: 0.68rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  opacity: 0.78;
+}
+
+.threat-badge:hover {
+  opacity: 1;
+  filter: brightness(1.1);
+}
+
+/* Rendered through a portal into document.body (see ThreatBadge.tsx) so it
+   can layer above sibling nodes/edges instead of being trapped under this
+   node's own stacking context — position/width are set inline per-instance. */
+.threat-badge__popover {
+  z-index: 2000;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.35rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.threat-badge__popover-header {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding: 0.3rem 0.4rem;
+}
+
+.threat-badge__popover-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 0.35rem 0.4rem;
+  border-radius: 5px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.threat-badge__popover-row:hover {
+  background: var(--surface-active);
+}
+
+.threat-badge__popover-cat {
+  flex-shrink: 0;
+  font-weight: 700;
+  font-size: 0.72rem;
+  width: 16px;
+}
+
+.threat-badge__popover-title {
+  font-size: 0.78rem;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

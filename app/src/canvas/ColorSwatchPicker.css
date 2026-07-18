@@ -1,0 +1,52 @@
+.swatch-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.swatch-picker__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+}
+
+.swatch--active {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.swatch--custom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: repeating-conic-gradient(#94a3b8 0% 25%, #64748b 0% 50%) 50% / 8px 8px;
+  overflow: hidden;
+}
+
+.swatch--custom input[type='color'] {
+  width: 30px;
+  height: 30px;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: none;
+}
+
+.swatch-picker__recent-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 0.3rem;
+}

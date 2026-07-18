@@ -1,0 +1,103 @@
+.framework-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.framework-card {
+  position: relative;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+  cursor: pointer;
+  color: var(--text);
+  transition: border-color 0.15s ease, background 0.15s ease;
+  font: inherit;
+}
+
+.framework-card:hover {
+  border-color: var(--accent);
+}
+
+.framework-card--on {
+  border-color: var(--accent);
+  background: var(--surface-active);
+}
+
+.framework-card--locked {
+  cursor: default;
+}
+
+.framework-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.framework-card__name {
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+
+.framework-card__info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--text-muted);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-style: italic;
+  cursor: help;
+}
+
+.framework-card__info:hover::after,
+.framework-card__info:focus::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: -8px;
+  width: 260px;
+  background: var(--tooltip-bg);
+  color: var(--tooltip-text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1.4;
+  white-space: normal;
+  z-index: 10;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.framework-card__category {
+  margin-top: 0.35rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+
+.framework-card__summary {
+  margin: 0.6rem 0 0.8rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.framework-card__toggle {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.framework-card--on .framework-card__toggle {
+  color: var(--accent);
+}

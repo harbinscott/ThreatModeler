@@ -1,0 +1,337 @@
+.threats-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.threats-layout {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+}
+
+.threats-list-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.threats-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.6rem 0;
+}
+
+.threats-filters select {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.78rem;
+}
+
+.threats-filters__count {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.threats-list {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.threats-list__empty {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+.threats-splitter {
+  width: 5px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+}
+
+.threats-splitter:hover,
+.threats-splitter:active {
+  background: var(--accent);
+}
+
+.threats-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.7rem;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: var(--text);
+}
+
+.threats-row:hover {
+  border-color: var(--accent);
+}
+
+.threats-row--selected {
+  border-color: var(--accent);
+  background: var(--surface-active);
+}
+
+.threats-row--resolved {
+  opacity: 0.55;
+}
+
+.threats-row__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.threats-row__title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.threats-row__target {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.threats-category {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid currentColor;
+  font-weight: 700;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.threats-category--lg {
+  width: 28px;
+  height: 28px;
+  font-size: 0.85rem;
+}
+
+.threats-status-pill {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.threats-status-pill--open {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.threats-risk-pill {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.threats-dread {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.7rem;
+  gap: 0.5rem !important;
+}
+
+.threats-dread__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.threats-dread__review-badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #f59e0b;
+  border: 1px solid #f59e0b;
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+
+.threats-dread__field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.threats-dread__field-label {
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.threats-dread__field input {
+  width: 56px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.25rem 0.4rem;
+  color: var(--text);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.threats-dread__field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.threats-dread__total {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+}
+
+.threats-dread__total strong {
+  color: var(--text);
+}
+
+.threats-dread__incomplete {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.threats-detail {
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  padding: 1.2rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.threats-detail--empty {
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.threats-detail__header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.threats-detail__header h2 {
+  font-size: 1rem;
+}
+
+.threats-detail__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+}
+
+.threats-detail__label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.threats-detail__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.threats-detail__field p {
+  font-size: 0.85rem;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.threats-detail__field select,
+.threats-detail__field textarea {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-family: inherit;
+}
+
+.threats-detail__field textarea:focus,
+.threats-detail__field select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.threats-source {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+}
+
+.threats-source--auto {
+  color: var(--accent);
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.threats-source--manual {
+  color: #a78bfa;
+  background: rgba(167, 139, 250, 0.12);
+}
+
+.threats-detail__delete {
+  margin-top: auto;
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.threats-detail__delete:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
