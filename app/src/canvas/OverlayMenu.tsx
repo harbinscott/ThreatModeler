@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { IconLayersIntersect, IconChevronDown } from '@tabler/icons-react'
 
 export interface OverlayLayers {
   threatBadges: boolean
@@ -32,7 +33,9 @@ export function OverlayMenu({ layers, onToggle, dreadAvailable }: OverlayMenuPro
   return (
     <div className="shape-button" ref={rootRef}>
       <button type="button" className="btn shape-button__caret" style={{ borderRadius: 8 }} onClick={() => setOpen((o) => !o)}>
-        Overlay ▾
+        <IconLayersIntersect size={15} aria-hidden="true" />
+        Overlay
+        <IconChevronDown size={13} aria-hidden="true" />
       </button>
       {open && (
         <ul className="shape-button__menu shape-button__menu--right overlay-menu">

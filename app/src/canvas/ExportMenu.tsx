@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { IconDownload, IconChevronDown } from '@tabler/icons-react'
 import type { ReportVariant } from '../reports/reportTemplate'
 
 interface ExportMenuProps {
@@ -27,7 +28,9 @@ export function ExportMenu({ onExport, exporting }: ExportMenuProps) {
         onClick={() => setOpen((o) => !o)}
         disabled={exporting}
       >
-        {exporting ? 'Exporting…' : 'Export ▾'}
+        <IconDownload size={15} aria-hidden="true" />
+        {exporting ? 'Exporting…' : 'Export'}
+        <IconChevronDown size={13} aria-hidden="true" />
       </button>
       {open && (
         <ul className="shape-button__menu shape-button__menu--right">

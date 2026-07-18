@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -34,6 +34,20 @@ import { getDiagramMessages } from '../threats/diagnostics'
 import { ThreatModelInfoDialog } from '../components/ThreatModelInfoDialog'
 import { MessagesDialog } from '../components/MessagesDialog'
 import { NotesDialog } from '../components/NotesDialog'
+import {
+  IconArrowLeft,
+  IconArrowBackUp,
+  IconArrowForwardUp,
+  IconInfoCircle,
+  IconAlertTriangle,
+  IconNotes,
+  IconDeviceFloppy,
+  IconChevronDown,
+  IconCircle,
+  IconUserSquareRounded,
+  IconDatabase,
+  IconShield,
+} from '@tabler/icons-react'
 import '../canvas/canvas.css'
 import type { DiagramEdge, DiagramNode, DreadScore, ElementType, PastaData, Project, Threat, ThreatStatus } from '../types/project'
 
@@ -52,6 +66,13 @@ const SHAPE_LABELS: Record<ElementType, string> = {
   'external-entity': 'External Entity',
   'data-store': 'Data Store',
   'trust-boundary': 'Trust Boundary',
+}
+
+const SHAPE_ICONS: Record<ElementType, ReactNode> = {
+  process: <IconCircle size={15} color="#2563eb" aria-hidden="true" />,
+  'external-entity': <IconUserSquareRounded size={15} color="#2563eb" aria-hidden="true" />,
+  'data-store': <IconDatabase size={15} color="#2563eb" aria-hidden="true" />,
+  'trust-boundary': <IconShield size={15} color="#f59e0b" aria-hidden="true" />,
 }
 
 function makeNode(elementType: ElementType, index: number, preset?: CatalogEntry): DiagramNode {
@@ -503,7 +524,8 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
         <div className="canvas-toolbar__row canvas-toolbar__row--primary">
           <div className="canvas-toolbar__title">
             <button type="button" className="btn" onClick={onBack}>
-              ← Projects
+              <IconArrowLeft size={15} aria-hidden="true" />
+              Projects
             </button>
             {renamingProject ? (
               <input
@@ -567,35 +589,48 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
               <>
                 <button
                   type="button"
-                  className="btn"
+                  className="btn btn--icon"
                   onClick={handleUndo}
                   disabled={!history.canUndo}
+                  aria-label="Undo"
                   title="Undo (Ctrl+Z)"
                 >
-                  ↺
+                  <IconArrowBackUp size={15} aria-hidden="true" />
                 </button>
                 <button
                   type="button"
-                  className="btn"
+                  className="btn btn--icon"
                   onClick={handleRedo}
                   disabled={!history.canRedo}
+                  aria-label="Redo"
                   title="Redo (Ctrl+Y)"
                 >
-                  ↻
+                  <IconArrowForwardUp size={15} aria-hidden="true" />
                 </button>
+                <span className="canvas-toolbar__divider" />
               </>
             )}
             <button type="button" className="btn" onClick={() => setShowInfoDialog(true)}>
+              <IconInfoCircle size={15} aria-hidden="true" />
               Info
             </button>
-            <button type="button" className="btn" onClick={() => setShowMessagesDialog(true)}>
-              Messages{warningCount > 0 ? ` (${warningCount})` : ''}
+            <button
+              type="button"
+              className={`btn${warningCount > 0 ? ' btn--warning' : ''}`}
+              onClick={() => setShowMessagesDialog(true)}
+            >
+              <IconAlertTriangle size={15} aria-hidden="true" color={warningCount > 0 ? '#f59e0b' : undefined} />
+              Messages
+              {warningCount > 0 && <span className="canvas-toolbar__badge">{warningCount}</span>}
             </button>
             <button type="button" className="btn" onClick={() => setShowNotesDialog(true)}>
+              <IconNotes size={15} aria-hidden="true" />
               Notes
             </button>
+            <span className="canvas-toolbar__divider" />
             <ExportMenu onExport={handleExport} exporting={exporting} />
             <button type="button" className="btn btn--primary" onClick={handleSave} disabled={saveState === 'saving'}>
+              <IconDeviceFloppy size={15} aria-hidden="true" />
               {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved ✓' : 'Save'}
             </button>
             {hasRibbon && (
@@ -606,7 +641,11 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
                 aria-label={ribbonOpen ? 'Collapse toolbar' : 'Expand toolbar'}
                 title={ribbonOpen ? 'Collapse toolbar' : 'Expand toolbar'}
               >
-                <span className={`canvas-drawer__caret${ribbonOpen ? ' canvas-drawer__caret--open' : ''}`}>▾</span>
+                <IconChevronDown
+                  size={14}
+                  aria-hidden="true"
+                  style={{ transform: ribbonOpen ? undefined : 'rotate(-90deg)', transition: 'transform 0.15s ease' }}
+                />
               </button>
             )}
           </div>
@@ -614,12 +653,27 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
         {hasRibbon && ribbonOpen && (
           <div className="canvas-toolbar__row canvas-toolbar__row--ribbon">
             {view === 'diagram' && (
-              <div className="canvas-toolbar__palette">
-                {(Object.keys(SHAPE_LABELS) as ElementType[]).map((type) => (
-                  <ShapeButton key={type} elementType={type} label={SHAPE_LABELS[type]} onAdd={addShape} />
-                ))}
-                <OverlayMenu layers={overlayLayers} onToggle={toggleOverlayLayer} dreadAvailable={project.frameworks.dread} />
-              </div>
+              <>
+                <div className="canvas-toolbar__group">
+                  <span className="canvas-toolbar__group-label">Add element</span>
+                  <div className="canvas-toolbar__palette">
+                    {(Object.keys(SHAPE_LABELS) as ElementType[]).map((type) => (
+                      <ShapeButton
+                        key={type}
+                        elementType={type}
+                        label={SHAPE_LABELS[type]}
+                        icon={SHAPE_ICONS[type]}
+                        onAdd={addShape}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <span className="canvas-toolbar__divider canvas-toolbar__divider--tall" />
+                <div className="canvas-toolbar__group">
+                  <span className="canvas-toolbar__group-label">View</span>
+                  <OverlayMenu layers={overlayLayers} onToggle={toggleOverlayLayer} dreadAvailable={project.frameworks.dread} />
+                </div>
+              </>
             )}
             {view === 'threats' && (
               <div className="canvas-toolbar__palette">

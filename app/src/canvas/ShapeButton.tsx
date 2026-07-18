@@ -1,14 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { IconChevronDown } from '@tabler/icons-react'
 import { catalogForType, type CatalogEntry } from './componentCatalog'
 import type { ElementType } from '../types/project'
 
 interface ShapeButtonProps {
   elementType: ElementType
   label: string
+  icon: ReactNode
   onAdd: (elementType: ElementType, preset?: CatalogEntry) => void
 }
 
-export function ShapeButton({ elementType, label, onAdd }: ShapeButtonProps) {
+export function ShapeButton({ elementType, label, icon, onAdd }: ShapeButtonProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const presets = catalogForType(elementType)
@@ -24,7 +26,8 @@ export function ShapeButton({ elementType, label, onAdd }: ShapeButtonProps) {
   return (
     <div className="shape-button" ref={rootRef}>
       <button type="button" className="btn shape-button__main" onClick={() => onAdd(elementType)}>
-        + {label}
+        {icon}
+        {label}
       </button>
       {presets.length > 0 && (
         <>
@@ -34,7 +37,7 @@ export function ShapeButton({ elementType, label, onAdd }: ShapeButtonProps) {
             onClick={() => setOpen((o) => !o)}
             aria-label={`${label} presets`}
           >
-            ▾
+            <IconChevronDown size={13} aria-hidden="true" />
           </button>
           {open && (
             <ul className="shape-button__menu">

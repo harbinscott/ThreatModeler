@@ -279,6 +279,25 @@ user asked for this to grow into one. Badge data flows through
 being embedded in node/edge data, since it's derived/transient and shouldn't
 be persisted to the project JSON.
 
+**Ribbon toolbar redesign** — icons on every toolbar control
+(`@tabler/icons-react`, self-hosted like the Inter font — no CDN dependency),
+grouped sections with small uppercase labels ("Add element" / "View") in the
+ribbon row, vertical `.canvas-toolbar__divider`s splitting the primary row
+into logical clusters (nav → undo/redo → Info/Messages/Notes → Export/Save).
+Messages gets a `.canvas-toolbar__badge` count pill plus an amber
+`.btn--warning` border when there are warnings to flag. Design was mocked up
+and approved by the user (via the visualize tool) before being wired into the
+real components — `ShapeButton.tsx` gained an `icon` prop
+(`SHAPE_ICONS` map in `Canvas.tsx`: process=circle, external
+entity=user-square, data store=database, trust boundary=shield in amber
+since it's the one preset-less button). `.btn` base class picked up
+`display: inline-flex; align-items: center; gap: 6px` so icon+label
+composition works everywhere `.btn` is used, not just the toolbar. **Bug
+caught and fixed while touching `.btn--primary`**: its text color was still
+hardcoded `#06251f` (dark teal-tinted, meant for the old teal
+`--accent-strong`) from before the "Threat Modeler" rebrand — on the new blue
+`--accent-strong` background that was barely readable. Changed to `#eaf1fb`.
+
 **Canvas toolbar** — `Canvas.tsx` + `canvas.css`. Two-row structure: a
 `.canvas-toolbar__row--primary` row (always visible — back button, project
 title/rename, view tabs, Export/Save, a ribbon collapse toggle) and a
@@ -387,10 +406,12 @@ always.
   opportunity for caller/hook state to disagree). Also added a `reset()`
   method so project-load establishes the baseline without polluting the undo
   stack with an initial no-op entry.
-- **Release 2 — Existing backlog cleanup** (the 8 items below this section):
-  MS-TMT-parity dialogs, DREAD overlay coloring, threat screenshot,
-  parallel-edge polish, ribbon design pass, resizable-panel verification. All
-  small and mostly independent — good for quickly clearing debt.
+- **Release 2 — Existing backlog cleanup**: MS-TMT-parity dialogs ✅, DREAD
+  overlay coloring ✅, parallel-edge spacing tune ✅ (partial, more design
+  work still wanted), resizable-panel verification ✅ (confirmed by extended
+  use, not a dedicated test). Threat screenshot explicitly skipped — see
+  Backlog. Still open: ribbon design pass (in progress now), plus two new
+  items added mid-release: trust boundary resize/reshape + shape presets.
 - **Release 3 — Data model depth**: data classification/type tags on data
   flows (currently only Data Store nodes have this), richer
   auth/protocol-mechanism fields (OAuth2/SAML/mTLS/JWT/API-key instead of a
@@ -413,35 +434,30 @@ always.
 
 ## Backlog (explicitly deferred, in rough priority order per most recent conversation)
 
-1. **[Awaiting verification]** Resizable panels (still never explicitly
-   confirmed by the user — later work was tested instead and this got carried
-   forward) — checkpoint was: drag the Threats splitter/Inspector width/drawer
-   height.
-2. **Threat diagram screenshot** — in the Threats detail panel, show a focused
-   screenshot/crop of the diagram at the threat's target element/flow location.
-3. **View editor** — `OverlayMenu.tsx`/`OverlayLayers` (see "Threat overlay on
-   canvas" above) was deliberately built as an extensible list of toggleable
-   diagram overlays, not a one-off. Next candidate layer: DREAD risk-level
-   coloring on nodes/edges (reusing `dreadEngine.ts`'s risk-level logic,
-   similar to the threat-count badges but colored by risk tier instead).
-4. **Parallel-edge endpoint visual polish** — the fan-out fix (done, see below)
-   separates overlapping edges but the user flagged the endpoint spacing as
-   still visually crowded on nodes with many connections; lower-priority
-   design pass, not a functional bug.
-5. **Threat Model Info dialog** — project metadata form (Name, Owner,
-   Contributors, Reviewer, High-Level System Description, Assumptions, External
-   Dependencies, Title, Version), mirroring MS TMT's File menu.
-6. **Messages dialog** — rule-engine diagnostics/warnings/inconsistencies (MS TMT's
-   View menu).
-7. **Notes dialog** — freeform discussion comments, explicitly not counted in
-   threat analysis (MS TMT's View menu).
-8. **Ribbon toolbar visual design/organization pass** — the two-row
-   collapsible ribbon (see "Canvas toolbar" above) fixed the functional
-   problems (spacing, narrow-window overlap, collapsibility), but the user
-   feels it could still be better organized/designed to make controls easier
-   to find at a glance — grouping, icons, section labels/dividers, visual
-   hierarchy between the shape palette and overlay menu, etc. Pure design
-   polish, not a functional bug.
+1. **[Done, awaiting verification]** Ribbon toolbar visual design/organization
+   pass — see "Ribbon toolbar redesign" above. User approved the mockup
+   before implementation; not yet confirmed against the real running app.
+2. **Trust boundary resize/reshape + shape presets** — user wants to (a) be
+   able to resize *and* reshape trust boundaries (currently only a dashed
+   rectangle, and it's unclear from the code whether resize works at all —
+   check `TrustBoundaryNode.tsx` / `boundary-resize-handle` in `canvas.css`),
+   and (b) a new toolbar dropdown of premade shape presets (square,
+   rectangle, circle, cloud) for trust boundaries, similar in spirit to how
+   `ShapeButton.tsx`'s caret already offers component-type presets for
+   Process/Data Store/External Entity. Requested right after the ribbon pass,
+   not started yet.
+3. **Parallel-edge endpoint visual polish** — spacing constants were tuned
+   once (`ENDPOINT_SPACING`/`PARALLEL_SPACING` in `FloatingEdge.tsx`) but the
+   user still feels it needs a proper design pass, not just bigger numbers.
+   Low priority.
+
+Decided against / explicitly skipped:
+- **Threat diagram screenshot** in the Threats detail panel — would have
+  needed caching a diagram snapshot + viewport transform while the Diagram
+  tab is mounted (since the canvas DOM doesn't exist on other tabs), with a
+  staleness tradeoff if the user edits the diagram without revisiting that
+  tab. User decided the threat overlay (color-coded badges directly on the
+  live diagram) already covers this need well enough — skip.
 
 Done this session (context for why the code looks the way it does):
 - **DREAD auto-scoring** and **Full MS-TMT attribute schema** — see "What's
