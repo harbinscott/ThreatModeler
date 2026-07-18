@@ -8,16 +8,25 @@ obvious from the code alone.
 
 ## Resume here (updated end of this session)
 
-1. **Trust boundary reshape (Square/Rectangle/Circle/Cloud presets) was just
-   built and typechecked, but never tested live** — the session ended before
-   the user could try it. This is the first thing to verify. See Backlog #1
-   below for the exact checkpoint.
-2. Everything through the ribbon toolbar redesign has been tested and
-   confirmed working by the user.
-3. Release 2 (backlog cleanup) is effectively done once #1 above is verified.
-   Next up per the agreed roadmap: **Release 3 — data model depth** (data
-   classification/type tags on data flows, richer auth/protocol fields) — see
-   "Release roadmap" section below for the full sequencing through Release 7.
+1. **Release 2 (backlog cleanup) is fully done and verified**, including
+   trust boundary resize/reshape + shape presets — confirmed working live by
+   the user, including the click-through/resize-handle bug fix (see "Trust
+   boundary resize/reshape + shape presets" below for the root cause: the
+   boundary's `pointer-events: none !important` click-through rule was being
+   inherited by `NodeResizer`'s own handle elements, making them
+   undraggable — fixed by giving `.boundary-resize-handle`/
+   `.boundary-resize-line` their own `pointer-events: auto` override).
+2. **Next up: Release 3 — data model depth.** Data classification/type tags
+   on data flows (currently only Data Store nodes have this), richer
+   auth/protocol-mechanism fields (OAuth2/SAML/mTLS/JWT/API-key instead of a
+   bare boolean). See "Release roadmap" below for the full sequencing through
+   Release 7 — nothing has been scoped or started on Release 3 yet, so expect
+   to confirm exact field lists with the user before building, same as every
+   other big feature this project.
+3. Two small backlog items remain, both low priority, neither blocking:
+   trust boundary shape editing *after* creation (currently creation-time
+   only), and further parallel-edge endpoint visual polish. See Backlog
+   below.
 4. Everything is committed and pushed to
    `https://github.com/harbinscott/ThreatModeler` (`main` branch) as of the
    end of this session.
@@ -438,6 +447,12 @@ Diagram captured via `html-to-image`'s `toPng` on the `.react-flow` DOM node
 3. Threats splitter drag felt "reversed and tiny" → root cause was `.threats-layout`
    missing `flex: 1`, so it wasn't filling `.canvas-body`'s width; the drag math was
    correct but referenced a box far narrower than the visible window.
+4. Trust boundary resize handles were unclickable → `pointer-events` is
+   inherited, and `.react-flow__node-trust-boundary`'s `pointer-events: none
+   !important` (for click-through to nodes underneath) was being inherited by
+   `NodeResizer`'s handle/line elements since only the label had its own
+   override. Fixed by adding `pointer-events: auto` to
+   `.boundary-resize-handle`/`.boundary-resize-line` too.
 
 ## Release roadmap (agreed with user — work through in this order)
 
@@ -461,14 +476,14 @@ always.
   opportunity for caller/hook state to disagree). Also added a `reset()`
   method so project-load establishes the baseline without polluting the undo
   stack with an initial no-op entry.
-- **Release 2 — Existing backlog cleanup** ✅ effectively done. MS-TMT-parity
+- **Release 2 — Existing backlog cleanup** ✅ done and verified. MS-TMT-parity
   dialogs ✅, DREAD overlay coloring ✅, parallel-edge spacing tune ✅
   (partial — user flagged it still wants a real design pass, kept as a low
-  priority Backlog item), resizable-panel verification ✅ (confirmed by
-  extended use), ribbon redesign ✅ (mocked up + approved + implemented +
-  confirmed working), trust boundary resize/reshape + shape presets ✅ (added
-  mid-release, implemented, not yet verified by user — see Backlog #1).
-  Threat screenshot explicitly skipped.
+  priority Backlog item), resizable-panel verification ✅, ribbon redesign ✅
+  (mocked up + approved + implemented + confirmed working), trust boundary
+  resize/reshape + shape presets ✅ (added mid-release; confirmed working
+  live including a click-through/resize-handle bug found and fixed on
+  resume — see "Bugs fixed" below). Threat screenshot explicitly skipped.
 - **Release 3 — Data model depth**: data classification/type tags on data
   flows (currently only Data Store nodes have this), richer
   auth/protocol-mechanism fields (OAuth2/SAML/mTLS/JWT/API-key instead of a
@@ -491,32 +506,13 @@ always.
 
 ## Backlog (explicitly deferred, in rough priority order per most recent conversation)
 
-1. **[Done, awaiting verification]** Trust boundary resize/reshape + shape
-   presets — see "Trust boundary resize/reshape + shape presets" above.
-   Implemented and typechecked, but not yet tested live by the user.
-   **Found and fixed a real bug on resume**: resize handles were
-   unclickable/undraggable. Root cause — `.react-flow__node-trust-boundary`
-   has `pointer-events: none !important` (intentional, for click-through to
-   nodes underneath), which is *inherited* by every descendant including
-   `NodeResizer`'s handle/line elements; only the label
-   (`.dfd-node--boundary__label`) had its own `pointer-events: auto`
-   override. Fixed by adding the same override to `.boundary-resize-handle`
-   and `.boundary-resize-line` in `canvas.css`. Verified against React Flow's
-   compiled source that these classnames land on the actual interactive
-   `<div>` (not a wrapper), so the fix should be correct — but still needs a
-   live check. Checkpoint: select a trust boundary, confirm the 8 resize
-   handles now actually drag; add one of each shape (Square/Rectangle/Circle/
-   Cloud) from the Trust Boundary button's caret and confirm they render
-   distinctly and resize correctly into non-square proportions; open an old
-   project with pre-existing rectangle boundaries and confirm it still loads
-   fine (backward-compat check for the new optional `boundaryShape` field).
-2. **Trust boundary shape editing after creation** — new gap identified while
-   building #1: shape can only be picked at creation time via the toolbar
-   preset; there's no way to change an existing boundary's shape afterward.
-   The Inspector shows nothing boundary-specific beyond Name/Description/
-   Color. Small, contained addition if wanted (add a shape selector to
-   `NodeInspector` in `Inspector.tsx`, gated on `elementType === 'trust-boundary'`).
-3. **Parallel-edge endpoint visual polish** — spacing constants were tuned
+1. **Trust boundary shape editing after creation** — shape can only be
+   picked at creation time via the toolbar preset; there's no way to change
+   an existing boundary's shape afterward. The Inspector shows nothing
+   boundary-specific beyond Name/Description/Color. Small, contained addition
+   if wanted (add a shape selector to `NodeInspector` in `Inspector.tsx`,
+   gated on `elementType === 'trust-boundary'`).
+2. **Parallel-edge endpoint visual polish** — spacing constants were tuned
    once (`ENDPOINT_SPACING`/`PARALLEL_SPACING` in `FloatingEdge.tsx`) but the
    user still feels it needs a proper design pass, not just bigger numbers.
    Low priority.
