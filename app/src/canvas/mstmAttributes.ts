@@ -1,4 +1,4 @@
-import type { AttributeValue, ElementType } from '../types/project'
+import type { AttributeValue, DataFlowProtocol, ElementType } from '../types/project'
 
 export type AttributeFieldType = 'text' | 'boolean' | 'select'
 
@@ -8,35 +8,36 @@ export interface AttributeFieldDef {
   type: AttributeFieldType
   options?: string[]
   /** Only rendered when this returns true for the element's current attribute bag —
-   *  drives Microsoft TMT's conditional sub-fields (e.g. Windows Store capabilities
-   *  only apply when Process Type is set to "Windows Store Process"). */
+   *  drives Microsoft TMT's conditional sub-fields (e.g. device-permission fields
+   *  only apply when the selected stencil's `processType` is a mobile/device app).
+   *  `processType`/`storeType`/`interactorType` themselves are no longer rendered
+   *  as their own fields — the top-level stencil picker in the Inspector sets them
+   *  as a side effect of `StencilDef.defaults`, so there's one "type" selector
+   *  instead of two. */
   when?: (attrs: Record<string, AttributeValue>) => boolean
 }
 
-const isActiveXProcess = (a: Record<string, AttributeValue>) => a.processType === 'Browser and ActiveX Plugins'
-const isWindowsStoreProcess = (a: Record<string, AttributeValue>) => a.processType === 'Windows Store Process'
+const isMobileDeviceApp = (a: Record<string, AttributeValue>) => a.processType === 'Mobile/Native Device App'
 
+/** Kept as a reference list (not rendered directly) — stencils in `stencils.ts`
+ *  set `processType` via their `defaults`. Exported for anything that wants to
+ *  validate/label the value later (e.g. reporting). */
 export const PROCESS_TYPE_OPTIONS = [
   'Generic Process',
+  'Web Server',
+  'Web Application',
+  'Web Service',
   'Managed Application',
+  'Native Application',
   'Thick Client',
   'Browser Client',
-  'Browser and ActiveX Plugins',
-  'Windows Store Process',
+  'Mobile/Native Device App',
+  'Virtual Machine',
+  'Background Service',
 ]
-
-/** processType -> Code Type default, mirroring MS-TMT stencil presets. Undefined means don't touch it. */
-export const PROCESS_TYPE_CODE_TYPE_DEFAULT: Record<string, 'Managed' | 'Unmanaged' | undefined> = {
-  'Managed Application': 'Managed',
-  'Windows Store Process': 'Managed',
-  'Thick Client': 'Unmanaged',
-  'Browser Client': 'Unmanaged',
-  'Browser and ActiveX Plugins': 'Unmanaged',
-}
 
 export function processSecurityFields(): AttributeFieldDef[] {
   return [
-    { key: 'processType', label: 'Process type', type: 'select', options: PROCESS_TYPE_OPTIONS },
     { key: 'codeType', label: 'Code type', type: 'select', options: ['Managed', 'Unmanaged'] },
     {
       key: 'runningAs',
@@ -50,14 +51,13 @@ export function processSecurityFields(): AttributeFieldDef[] {
         'Administrator',
         'Standard User with Elevation',
         'Standard User without Elevation',
-        'Windows Store App',
       ],
     },
     {
       key: 'isolationLevel',
       label: 'Isolation level',
       type: 'select',
-      options: ['AppContainer', 'Low Integrity Level', 'MOICE', 'Sandbox'],
+      options: ['AppContainer', 'Low Integrity Level', 'Sandbox'],
     },
     {
       key: 'acceptsInputFrom',
@@ -69,7 +69,6 @@ export function processSecurityFields(): AttributeFieldDef[] {
         'Local or Network Service',
         'Local Standard User with Elevation',
         'Local Standard User without Elevation',
-        'Windows Store Apps or App Container Processes',
         'Nothing',
         'Other',
       ],
@@ -79,44 +78,16 @@ export function processSecurityFields(): AttributeFieldDef[] {
     { key: 'implementsProtocol', label: 'Implements a communication protocol', type: 'boolean' },
     { key: 'sanitizesInput', label: 'Sanitizes input', type: 'boolean' },
     { key: 'sanitizesOutput', label: 'Sanitizes output', type: 'boolean' },
-    { key: 'activeX', label: 'ActiveX', type: 'boolean', when: isActiveXProcess },
-    { key: 'browserPluginObject', label: 'Browser plugin object', type: 'boolean', when: isActiveXProcess },
-    { key: 'storeContext', label: 'Context', type: 'select', options: ['Local', 'Web'], when: isWindowsStoreProcess },
-    { key: 'documentsLibraryCapability', label: 'Documents Library capability', type: 'boolean', when: isWindowsStoreProcess },
-    {
-      key: 'enterpriseAuthenticationCapability',
-      label: 'Enterprise Authentication capability',
-      type: 'boolean',
-      when: isWindowsStoreProcess,
-    },
-    {
-      key: 'internetClientServerCapability',
-      label: 'Internet (Client & Server) capability',
-      type: 'boolean',
-      when: isWindowsStoreProcess,
-    },
-    { key: 'internetClientCapability', label: 'Internet (Client) capability', type: 'boolean', when: isWindowsStoreProcess },
-    { key: 'locationCapability', label: 'Location capability', type: 'boolean', when: isWindowsStoreProcess },
-    { key: 'microphoneCapability', label: 'Microphone capability', type: 'boolean', when: isWindowsStoreProcess },
-    { key: 'musicLibraryCapability', label: 'Music Library capability', type: 'boolean', when: isWindowsStoreProcess },
-    { key: 'picturesLibraryCapability', label: 'Pictures Library capability', type: 'boolean', when: isWindowsStoreProcess },
-    {
-      key: 'privateNetworksCapability',
-      label: 'Private Networks (Client & Server) capability',
-      type: 'boolean',
-      when: isWindowsStoreProcess,
-    },
-    { key: 'proximityCapability', label: 'Proximity capability', type: 'boolean', when: isWindowsStoreProcess },
-    { key: 'removableStorageCapability', label: 'Removable Storage capability', type: 'boolean', when: isWindowsStoreProcess },
-    {
-      key: 'sharedUserCertificatesCapability',
-      label: 'Shared User Certificates capability',
-      type: 'boolean',
-      when: isWindowsStoreProcess,
-    },
-    { key: 'textMessagingCapability', label: 'Text Messaging capability', type: 'boolean', when: isWindowsStoreProcess },
-    { key: 'videosLibraryCapability', label: 'Videos Library capability', type: 'boolean', when: isWindowsStoreProcess },
-    { key: 'webcamCapability', label: 'Webcam capability', type: 'boolean', when: isWindowsStoreProcess },
+    // Condensed from MS-TMT's 14 separate Windows Store capability checkboxes
+    // (GPS/Contacts/Calendar/SMS/Mic/Webcam/Music/Pictures/Videos/Proximity/
+    // Removable Storage/Shared Certs/Enterprise/Documents) into 4 vendor-neutral
+    // groups — "does this app touch sensitive device data" matters the same way
+    // for an iOS/Android app as a UWP one, and 14 always-visible checkboxes for
+    // one narrow processType wasn't earning its keep.
+    { key: 'deviceLocationContacts', label: 'Location, contacts & calendar', type: 'boolean', when: isMobileDeviceApp },
+    { key: 'deviceCamera', label: 'Camera / microphone', type: 'boolean', when: isMobileDeviceApp },
+    { key: 'deviceMessaging', label: 'SMS / messaging data', type: 'boolean', when: isMobileDeviceApp },
+    { key: 'deviceCredentials', label: 'Cached credentials / enterprise data', type: 'boolean', when: isMobileDeviceApp },
   ]
 }
 
@@ -124,27 +95,35 @@ const isFileSystemStore = (a: Record<string, AttributeValue>) => a.storeType ===
 const isCookieStore = (a: Record<string, AttributeValue>) => a.storeType === 'Cookie'
 const isDeviceStore = (a: Record<string, AttributeValue>) => a.storeType === 'Device'
 
+export const STORE_TYPE_OPTIONS = [
+  'SQL Relational Database',
+  'Non-Relational Database',
+  'File System',
+  'Registry',
+  'Configuration',
+  'Cache',
+  'HTML5 Storage',
+  'Cookie',
+  'Device',
+  'Cloud Storage',
+]
+
 export function dataStoreSecurityFields(): AttributeFieldDef[] {
   return [
+    // Promoted from a catalog-only field (previously only shown for the
+    // Database/File Storage presets) to a shared field — every data store
+    // type feeds `ruleEngine.ts`'s Information Disclosure severity escalation
+    // off this value, so it needs to be settable regardless of stencil.
     {
-      key: 'storeType',
-      label: 'Store type',
+      key: 'dataClassification',
+      label: 'Data classification',
       type: 'select',
-      options: [
-        'SQL Relational Database',
-        'Non-Relational Database',
-        'File System',
-        'Registry',
-        'Configuration',
-        'Cache',
-        'HTML5 Storage',
-        'Cookie',
-        'Device',
-      ],
+      options: ['Public', 'Internal', 'Confidential', 'Restricted'],
     },
     { key: 'storesCredentials', label: 'Stores credentials', type: 'boolean' },
     { key: 'storesLogData', label: 'Stores log data', type: 'boolean' },
-    { key: 'encryptedAtRest', label: 'Encrypted', type: 'boolean' },
+    { key: 'encryptedAtRest', label: 'Encrypted at rest', type: 'boolean' },
+    { key: 'encryptedInTransit', label: 'Encrypted in transit', type: 'boolean' },
     { key: 'signed', label: 'Signed', type: 'boolean' },
     { key: 'writeAccess', label: 'Write access', type: 'boolean' },
     { key: 'removableStorage', label: 'Removable storage', type: 'boolean' },
@@ -158,62 +137,77 @@ export function dataStoreSecurityFields(): AttributeFieldDef[] {
       when: isFileSystemStore,
     },
     { key: 'httpOnlyCookie', label: 'HTTP only', type: 'boolean', when: isCookieStore },
-    { key: 'deviceGps', label: 'GPS', type: 'boolean', when: isDeviceStore },
-    { key: 'deviceContacts', label: 'Contacts', type: 'boolean', when: isDeviceStore },
-    { key: 'deviceCalendarEvents', label: 'Calendar events', type: 'boolean', when: isDeviceStore },
-    { key: 'deviceSmsMessages', label: 'SMS messages', type: 'boolean', when: isDeviceStore },
-    { key: 'deviceCachedCredentials', label: 'Cached credentials', type: 'boolean', when: isDeviceStore },
-    { key: 'deviceEnterpriseData', label: 'Enterprise data', type: 'boolean', when: isDeviceStore },
-    { key: 'deviceMessagingData', label: 'Messaging data', type: 'boolean', when: isDeviceStore },
-    { key: 'deviceSimStorage', label: 'SIM storage', type: 'boolean', when: isDeviceStore },
-    { key: 'deviceOtherData', label: 'Other data', type: 'boolean', when: isDeviceStore },
+    // Condensed from MS-TMT's 9 separate device-store checkboxes into 4.
+    { key: 'deviceLocationContacts', label: 'Location, contacts & calendar', type: 'boolean', when: isDeviceStore },
+    { key: 'deviceMessaging', label: 'SMS / messaging data', type: 'boolean', when: isDeviceStore },
+    { key: 'deviceCredentials', label: 'Cached credentials', type: 'boolean', when: isDeviceStore },
+    { key: 'deviceOtherSensitive', label: 'Other sensitive data (enterprise, SIM, misc)', type: 'boolean', when: isDeviceStore },
   ]
 }
 
+/** Kept as a reference list (not rendered directly) — stencils in `stencils.ts`
+ *  set `interactorType` via their `defaults`. */
 export const INTERACTOR_TYPE_OPTIONS = [
-  'External Interactor',
+  'Human User',
   'Browser',
   'External Web Application',
   'External Web Service',
-  'Human User',
-  'Windows Runtime',
-  'Windows .NET Runtime',
-  'Windows RT Runtime',
+  'Authorization Provider',
+  'Megaservice',
+  'Managed Runtime',
 ]
-
-/** interactorType -> Type (Code/Human) default, mirroring MS-TMT stencil presets. */
-export const INTERACTOR_TYPE_TYPE_DEFAULT: Record<string, 'Code' | 'Human' | undefined> = {
-  Browser: 'Code',
-  'External Web Application': 'Code',
-  'External Web Service': 'Code',
-  'Windows Runtime': 'Code',
-  'Windows .NET Runtime': 'Code',
-  'Windows RT Runtime': 'Code',
-  'Human User': 'Human',
-}
 
 export function externalInteractorSecurityFields(): AttributeFieldDef[] {
   return [
-    { key: 'interactorType', label: 'Interactor type', type: 'select', options: INTERACTOR_TYPE_OPTIONS },
     { key: 'authenticated', label: 'Authenticates itself', type: 'boolean' },
     { key: 'type', label: 'Type', type: 'select', options: ['Not Selected', 'Code', 'Human'] },
-    { key: 'isMicrosoft', label: 'Microsoft', type: 'boolean' },
+    { key: 'vendorManaged', label: 'Third-party / vendor-managed', type: 'boolean' },
   ]
+}
+
+export const DATA_FLOW_PROTOCOL_OPTIONS: DataFlowProtocol[] = [
+  'HTTP',
+  'HTTPS',
+  'IPsec',
+  'RPC/DCOM',
+  'Named Pipe',
+  'SMB',
+  'ALPC',
+  'Binary',
+  'UDP',
+  'IOCTL',
+]
+
+/** protocol -> shared-field defaults, mirroring the MS-TMT Data Flow stencils'
+ *  property overrides. Applied the same way stencil selection applies
+ *  `StencilDef.defaults` — only into currently-empty fields, never clobbering
+ *  a value the user already set. Protocols not listed (RPC/DCOM, Named Pipe,
+ *  SMB, ALPC, Binary, UDP, IOCTL) have no MS-TMT default overrides either —
+ *  left for the user to set explicitly. */
+export const DATA_FLOW_PROTOCOL_DEFAULTS: Partial<Record<DataFlowProtocol, Record<string, AttributeValue>>> = {
+  HTTP: { sourceAuthenticated: false, destinationAuthenticated: false, providesConfidentiality: false, providesIntegrity: false },
+  HTTPS: { destinationAuthenticated: true, providesConfidentiality: true, providesIntegrity: true },
+  IPsec: { sourceAuthenticated: true, destinationAuthenticated: true, providesConfidentiality: true, providesIntegrity: true },
 }
 
 export function dataFlowSecurityFields(): AttributeFieldDef[] {
   return [
+    { key: 'protocol', label: 'Protocol', type: 'select', options: DATA_FLOW_PROTOCOL_OPTIONS },
     { key: 'physicalNetwork', label: 'Physical network', type: 'select', options: ['Wire', 'Wifi', 'Bluetooth', '2G-4G'] },
     { key: 'sourceAuthenticated', label: 'Source authenticated', type: 'boolean' },
     { key: 'destinationAuthenticated', label: 'Destination authenticated', type: 'boolean' },
     { key: 'providesConfidentiality', label: 'Provides confidentiality', type: 'boolean' },
     { key: 'providesIntegrity', label: 'Provides integrity', type: 'boolean' },
-    { key: 'transmitsXml', label: 'Transmits XML', type: 'boolean' },
+    // Condensed from 5 mostly-mutually-exclusive payload booleans (XML/SOAP/
+    // REST/RSS/JSON) into one select — a flow's payload is practically always
+    // one of these, not several at once.
+    {
+      key: 'payloadFormat',
+      label: 'Payload format',
+      type: 'select',
+      options: ['JSON', 'XML', 'SOAP', 'REST', 'RSS', 'Binary', 'Other'],
+    },
     { key: 'containsCookies', label: 'Contains cookies', type: 'boolean' },
-    { key: 'soapPayload', label: 'SOAP payload', type: 'boolean' },
-    { key: 'restPayload', label: 'REST payload', type: 'boolean' },
-    { key: 'rssPayload', label: 'RSS payload', type: 'boolean' },
-    { key: 'jsonPayload', label: 'JSON payload', type: 'boolean' },
   ]
 }
 

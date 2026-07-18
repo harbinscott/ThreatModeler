@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import { findCatalogEntry } from './componentCatalog'
-import type { DiagramEdge, DiagramNode, ElementType } from '../types/project'
+import { findStencil, type StencilOption } from './stencils'
+import { ShapeButton } from './ShapeButton'
+import { SHAPE_LABELS, SHAPE_ICONS } from './shapeMeta'
+import type { CustomStencil, DiagramEdge, DiagramNode, ElementType } from '../types/project'
 import './ElementsTable.css'
 
 type SubTab = 'elements' | 'flows'
@@ -8,26 +10,23 @@ type SubTab = 'elements' | 'flows'
 interface ElementsTableProps {
   nodes: DiagramNode[]
   edges: DiagramEdge[]
+  customStencils?: CustomStencil[]
   onSelectNode: (id: string) => void
   onSelectEdge: (id: string) => void
-  onAddElement: (elementType: ElementType) => void
+  onAddElement: (elementType: ElementType, preset?: StencilOption) => void
   onAddFlow: (sourceId: string, targetId: string) => void
   onDeleteNode: (id: string) => void
   onDeleteEdge: (id: string) => void
 }
 
-const TYPE_LABELS: Record<ElementType, string> = {
-  process: 'Process',
-  'external-entity': 'External Entity',
-  'data-store': 'Data Store',
-  'trust-boundary': 'Trust Boundary',
-}
+const TYPE_LABELS = SHAPE_LABELS
 
 const ADDABLE_TYPES: ElementType[] = ['process', 'external-entity', 'data-store']
 
 export function ElementsTable({
   nodes,
   edges,
+  customStencils = [],
   onSelectNode,
   onSelectEdge,
   onAddElement,
@@ -73,9 +72,14 @@ export function ElementsTable({
         <>
           <div className="elements-table__toolbar">
             {ADDABLE_TYPES.map((type) => (
-              <button type="button" key={type} className="btn" onClick={() => onAddElement(type)}>
-                + {TYPE_LABELS[type]}
-              </button>
+              <ShapeButton
+                key={type}
+                elementType={type}
+                label={TYPE_LABELS[type]}
+                icon={SHAPE_ICONS[type]}
+                customStencils={customStencils}
+                onAdd={onAddElement}
+              />
             ))}
           </div>
           <div className="elements-table__list">
@@ -97,7 +101,7 @@ export function ElementsTable({
                 <span className="elements-table__type">{TYPE_LABELS[n.data.elementType]}</span>
                 {n.data.componentType && (
                   <span className="elements-table__component">
-                    {findCatalogEntry(n.data.componentType)?.name ?? n.data.componentType}
+                    {findStencil(n.data.componentType, customStencils)?.name ?? n.data.componentType}
                   </span>
                 )}
                 <button

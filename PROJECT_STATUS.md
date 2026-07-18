@@ -8,26 +8,42 @@ obvious from the code alone.
 
 ## Resume here (updated end of this session)
 
-1. **Release 2 (backlog cleanup) is fully done and verified**, including
-   trust boundary resize/reshape + shape presets — confirmed working live by
-   the user, including the click-through/resize-handle bug fix (see "Trust
-   boundary resize/reshape + shape presets" below for the root cause: the
-   boundary's `pointer-events: none !important` click-through rule was being
-   inherited by `NodeResizer`'s own handle elements, making them
-   undraggable — fixed by giving `.boundary-resize-handle`/
-   `.boundary-resize-line` their own `pointer-events: auto` override).
-2. **Next up: Release 3 — data model depth.** Data classification/type tags
-   on data flows (currently only Data Store nodes have this), richer
-   auth/protocol-mechanism fields (OAuth2/SAML/mTLS/JWT/API-key instead of a
-   bare boolean). See "Release roadmap" below for the full sequencing through
-   Release 7 — nothing has been scoped or started on Release 3 yet, so expect
-   to confirm exact field lists with the user before building, same as every
-   other big feature this project.
-3. Two small backlog items remain, both low priority, neither blocking:
+1. **Release 3 — Element & Property Foundation — done and fully verified.**
+   Unified the old two-selector system (`componentCatalog.ts` quick presets
+   + `mstmAttributes.ts` MS-TMT advanced fields, shown as two separate
+   dropdowns) into one condensed stencil picker per element type, plus
+   custom-property add/remove and "save as custom element". User tested live
+   across two passes (core functionality, then the table-view consistency
+   fix) and confirmed everything works. See "Element & property system
+   (Release 3)" under "What's built" below for the full writeup.
+2. **Next up: Release 4 — Trust-Boundary Awareness & Flow/List UX.**
+   Geometric containment (which boundary each node currently sits inside),
+   a numeric signifier for duplicate-named elements, and upgrading the Table
+   tab's Flows list to show the zone-qualified path
+   (`Internal Network → Web Server —one-way→ Customer → External
+   User/Client`) instead of a bare `source → target` label. Sequence and
+   scope already agreed with the user as part of the Release 3-6
+   re-grouping — see "Release roadmap" below.
+3. **Roadmap was re-sequenced this session** after the user tested the app
+   and brought back 7 new backlog items plus a Microsoft Threat Modeling
+   Tool element/property export (`microsoft_tmt_elements.json`) as a
+   reference dataset. The 7 items were grouped into four new releases
+   (3 through 6), pushing the previously-planned CAPEC/CWE/scalability/SDLC
+   work down to Releases 7-10. See "Release roadmap" below for the full
+   current sequencing and the reasoning behind each grouping.
+4. **Two more items came in from Release 3 testing** and were folded into
+   the roadmap rather than built immediately: an unsaved-changes guard
+   (warn before navigating away from an edited-but-unsaved diagram) — added
+   to Backlog below since it's small and a real data-safety gap, worth
+   doing sooner rather than waiting on a full release — and a capped
+   version-history/rollback feature, which landed in Release 9 (SDLC
+   integration) since it already covered related ground
+   ("versioning/diffing between saves").
+5. Two small backlog items remain, both low priority, neither blocking:
    trust boundary shape editing *after* creation (currently creation-time
    only), and further parallel-edge endpoint visual polish. See Backlog
    below.
-4. Everything is committed and pushed to
+6. Everything is committed and pushed to
    `https://github.com/harbinscott/ThreatModeler` (`main` branch) as of the
    end of this session.
 
@@ -109,10 +125,13 @@ the terminal running `npm run electron:dev`, not DevTools.
 ```
 Project { id, name, description, frameworks{stride,dread,pasta}, diagram{nodes,edges},
   threats[], pasta?, info?{owner,contributors,reviewer,assumptions,externalDependencies},
-  notes?, createdAt, updatedAt }
+  notes?, customStencils?[], createdAt, updatedAt }
 DiagramNodeData { label, elementType, description?, componentType?, attributes?,
-  colors?{fill,border,text}, boundaryShape?('rectangle'|'circle'|'cloud', trust-boundary only) }
-DiagramEdgeData { label?, lineStyle?, arrowStyle?, color?, attributes? }
+  colors?{fill,border,text}, boundaryShape?('rectangle'|'circle'|'cloud', trust-boundary only),
+  boundaryType?(trust-boundary only), customFields?[], hiddenFieldKeys?[] }
+DiagramEdgeData { label?, lineStyle?, arrowStyle?, color?, attributes?, customFields?[], hiddenFieldKeys?[] }
+CustomStencil { id, name, elementType, defaults?, customFields?[], hiddenFieldKeys?[] } — see stencils.ts
+CustomFieldDef { key, label, type('text'|'boolean'|'select'), options? }
 Threat { id, ruleId, targetType, targetId, targetLabel, componentType?, category(S/T/R/I/D/E),
   title, description, status, source, notes?, dread?{damage,reproducibility,exploitability,
   affectedUsers,discoverability}, dreadNeedsReview?, createdAt }
@@ -273,6 +292,45 @@ relevant DREAD field(s) up when an attribute signals elevated risk (no auth →
 +3 damage/+2 affected-users on Information Disclosure, etc). Both read the
 same attribute keys, so a change in the Inspector is "mappable back to STRIDE
 and DREAD" without extra wiring per the original request.
+
+**Element & property system (Release 3)** — replaces the old two-selector
+setup described in "MS-TMT security attributes" above (that section's
+content is now partially superseded — the schema itself is still mostly the
+same, but the picker UX changed). `src/canvas/stencils.ts` is the new single
+source of truth: `BUILT_IN_STENCILS`, condensed from the Microsoft Threat
+Modeling Tool's SDL TM Knowledge Base export the user supplied
+(`microsoft_tmt_elements.json`) — dead tech dropped (ActiveX/BHO), OS-
+internals-only stencils dropped (Kernel Thread, Thread, OS Process), Windows
+Store's 14 capability checkboxes generalized into ~4 vendor-neutral
+device-permission fields (`mstmAttributes.ts`). One `Type` combobox per
+element in `Inspector.tsx` replaces the old componentType-combobox +
+separate MS-TMT-subtype-select pair; picking a stencil applies its
+`defaults` into `attributes` (only into currently-empty keys, never
+clobbering something the user already set) and its `customFields` (the
+old catalog's Protocol/Port/etc. fields are now stencil `customFields`
+rather than a separate system). `processType`/`storeType`/`interactorType`
+are no longer their own visible fields — stencil selection sets them
+silently as part of `defaults`, still driving the existing `when()`
+conditional-field logic in `mstmAttributes.ts` unchanged. New capabilities:
+per-instance custom properties (`DiagramNodeData.customFields`, text/
+boolean/select, added via a small inline form in the Security Properties
+section), per-instance field hiding (`hiddenFieldKeys`, restorable via a
+chip), and "Save as custom element" which promotes a customized node's
+current field values + custom fields into a `Project.customStencils` entry
+— selectable from the Type picker (tagged "· Custom") and the toolbar/table
+shape-button flyouts from then on. Data flows gained a `protocol` field
+(`DATA_FLOW_PROTOCOL_OPTIONS`/`DATA_FLOW_PROTOCOL_DEFAULTS` in
+`mstmAttributes.ts`) that cascades auth/confidentiality/integrity defaults
+the same way node stencils do, and the old 5 payload-type booleans (XML/
+SOAP/REST/RSS/JSON) collapsed into one `payloadFormat` select. Data
+classification (`Public`/`Internal`/`Confidential`/`Restricted`) was
+promoted from a catalog-only field (previously only on 2 of ~11 possible
+data-store presets) to a shared field on every data store — closes a real
+gap, since `ruleEngine.ts` already keyed Information Disclosure severity off
+it. Trust boundaries gained a `boundaryType` field (Internet/CorpNet/
+Sandbox/Kernel/Cloud Tenant boundary), independent of the existing
+`boundaryShape` (visual) field. `componentCatalog.ts` was deleted —
+fully superseded, nothing imports it anymore.
 
 **DREAD risk-level overlay coloring** — second overlay layer (see "Threat
 overlay on canvas" below for the first). `OverlayLayers` gained
@@ -453,6 +511,24 @@ Diagram captured via `html-to-image`'s `toPng` on the `.react-flow` DOM node
    `NodeResizer`'s handle/line elements since only the label had its own
    override. Fixed by adding `pointer-events: auto` to
    `.boundary-resize-handle`/`.boundary-resize-line` too.
+5. Table tab's "+Process/+External Entity/+Data Store" buttons always
+   created a generic untyped element, unlike the ribbon's equivalent buttons
+   which offer a stencil-picker flyout — a real inconsistency the user
+   caught while testing Release 3, not a regression it introduced (the table
+   buttons never had this). Fixed by extracting `SHAPE_LABELS`/`SHAPE_ICONS`
+   out of `Canvas.tsx` into a shared `src/canvas/shapeMeta.tsx` and swapping
+   `ElementsTable.tsx`'s plain buttons for the same `ShapeButton` component
+   the ribbon uses, so both entry points now offer the same stencil flyout
+   and can't drift apart again.
+6. New Project wizard's name field intermittently wasn't focused/typeable
+   immediately on open (user saw it twice, not reliably reproducible).
+   Likely cause: the wizard mounts fresh each time (`App.tsx` swaps it in via
+   a `view` state change, not on initial page load), and the plain
+   `autoFocus` prop occasionally lost the race against React 19 StrictMode's
+   double-invoked dev-mode commit. Replaced with an explicit `useEffect` +
+   ref-based `.focus()` call in `NewProjectWizard.tsx` — the standard, more
+   reliable fix for autofocus-on-remount, and idempotent even if the effect
+   fires twice.
 
 ## Release roadmap (agreed with user — work through in this order)
 
@@ -484,35 +560,89 @@ always.
   resize/reshape + shape presets ✅ (added mid-release; confirmed working
   live including a click-through/resize-handle bug found and fixed on
   resume — see "Bugs fixed" below). Threat screenshot explicitly skipped.
-- **Release 3 — Data model depth**: data classification/type tags on data
-  flows (currently only Data Store nodes have this), richer
-  auth/protocol-mechanism fields (OAuth2/SAML/mTLS/JWT/API-key instead of a
-  bare boolean). Extends the existing attribute system — no new subsystems —
-  and directly sharpens STRIDE/DREAD output. Biggest bang-for-buck per the
-  user's "professional security staff" ask.
-- **Release 4 — Threat intelligence grounding**: CAPEC/CWE IDs cited on
+Re-sequenced this session: the user tested the app and brought back 7 new
+backlog items (numbered 1-7 below as the user gave them) plus a Microsoft
+Threat Modeling Tool element/property export
+(`microsoft_tmt_elements.json`, category → stencil → property hierarchy,
+STRIDE-aligned) as a reference dataset for item 1. Grouped by dependency,
+not just theme — each release below only needs what the ones above it
+already built:
+
+- **Release 3 — Element & Property Foundation** ✅ done and verified this
+  session. *(user items 1 + 2)*:
+  Replace the old two-selector system (`componentCatalog.ts`'s 8 quick
+  presets + `mstmAttributes.ts`'s MS-TMT advanced fields, shown as two
+  separate dropdowns) with one condensed stencil picker per element type,
+  imported from the MS-TMT JSON with logical condensing (dropped dead tech
+  like ActiveX, merged OS-internals-only stencils, generalized
+  Windows-Store-specific capability fields into vendor-neutral ones — see
+  "Element & property system" below for the full list once built). Also:
+  true custom elements (blank stencil, user-named), per-instance custom
+  property add/remove (text/boolean/select), and "save as custom element" to
+  persist a customized stencil back into the project's catalog. Goes first —
+  every release below assumes elements can carry custom properties.
+- **Release 4 — Trust-Boundary Awareness & Flow/List UX** *(user item 3 + 4)*:
+  Geometric containment (which boundary each node currently sits inside,
+  recomputed on move/resize), a numeric signifier for duplicate-named
+  elements, and upgrading the Table tab's Flows list to show the
+  zone-qualified path the user's TMT screenshot showed (`Internal Network →
+  Web Server —one-way→ Customer → External User/Client`) instead of a bare
+  `source → target` label.
+- **Release 5 — Smart Data Classification & Compliance Tagging** *(user item
+  5)*: absorbs what was originally scoped as "Release 3" before this
+  re-sequencing (data classification/type tags on data flows). Data
+  type/sensitivity picker (PII, PHI/HIPAA, PCI, etc.) on Data Store and Data
+  Flow elements, propagated along the connection graph so anything a tagged
+  element touches inherits the relevant compliance tag (e.g. PCI tier).
+  Needs Release 4's graph-traversal groundwork and Release 3's custom
+  property plumbing.
+- **Release 6 — Mitigation Elements (Firewall/WAF)** *(user items 6 + 7)*:
+  biggest lift of the seven. A new node type droppable directly onto an
+  edge, auto-splitting existing connections (including fan-in from multiple
+  sources) into hub-and-spoke through the mitigation, with an explicit
+  override/disconnect for traffic that legitimately bypasses it. Its
+  security properties feed the existing `ruleEngine.ts`/`dreadEngine.ts`
+  attribute-adjustment pattern (same mechanism already built for MS-TMT
+  attributes) to suppress/downgrade STRIDE threats and adjust DREAD scores
+  when present. Sequenced last — needs Release 3's property system and a
+  settled connection model from Release 4.
+- **Release 7 — Threat intelligence grounding**: CAPEC/CWE IDs cited on
   generated threats, mitigation mapping to control frameworks (OWASP ASVS,
   NIST 800-53, CIS). Bigger lift — needs a curated reference dataset — makes
   more sense once Release 3's richer attributes exist to map from.
-- **Release 5 — Diagram scalability**: drill-down/sub-diagrams (context
+- **Release 8 — Diagram scalability**: drill-down/sub-diagrams (context
   diagram expanding into per-service detail), auto-layout (dagre/elkjs "tidy
-  up" button). Do after Release 1's editing fundamentals are solid.
-- **Release 6 — SDLC integration**: threat model versioning/diffing between
-  saves, risk-acceptance sign-off (who/when/review-by date, not just a status
-  + freeform note), push open threats to Jira/GitHub Issues as tracked work.
-- **Release 7 — Stretch** (original Phase 7 ideas, still valid): custom
+  up" button).
+- **Release 9 — SDLC integration**: threat model versioning/diffing between
+  saves — the user's ask, surfaced testing Release 3, was specific: a
+  revision counter next to the Canvas back-arrow that increments on every
+  save, clickable to see a list of past revisions with timestamps, and
+  restore any of them. Capped at the last 5-10 saves to avoid unbounded
+  project-file growth, with a settings override to raise the cap. Also:
+  risk-acceptance sign-off (who/when/review-by date, not just a status +
+  freeform note), push open threats to Jira/GitHub Issues as tracked work.
+- **Release 10 — Stretch** (original Phase 7 ideas, still valid): custom
   user-defined STRIDE rules, IaC import (Terraform/CloudFormation →
   diagram elements), "crown jewel" asset tagging for risk prioritization.
 
 ## Backlog (explicitly deferred, in rough priority order per most recent conversation)
 
-1. **Trust boundary shape editing after creation** — shape can only be
+1. **Unsaved-changes guard** — added this session, user-flagged as a real
+   data-safety gap while testing Release 3. Right now the Canvas back arrow
+   (and presumably project switch/close) discards any unsaved diagram edits
+   with no warning. Needs: a "dirty" flag (compare current nodes/edges/
+   project state against the last-saved snapshot, or simpler — a boolean set
+   by any mutation and cleared by `save()`), and a confirm dialog on
+   navigate-away offering Save / Discard / Cancel. Small, self-contained,
+   worth doing before it costs someone real work.
+2. **Trust boundary shape editing after creation** — shape can only be
    picked at creation time via the toolbar preset; there's no way to change
    an existing boundary's shape afterward. The Inspector shows nothing
-   boundary-specific beyond Name/Description/Color. Small, contained addition
-   if wanted (add a shape selector to `NodeInspector` in `Inspector.tsx`,
-   gated on `elementType === 'trust-boundary'`).
-2. **Parallel-edge endpoint visual polish** — spacing constants were tuned
+   boundary-specific beyond Name/Description/Color/Boundary type (added in
+   Release 3). Small, contained addition if wanted (add a shape selector to
+   `NodeInspector` in `Inspector.tsx`, gated on `elementType ===
+   'trust-boundary'`).
+3. **Parallel-edge endpoint visual polish** — spacing constants were tuned
    once (`ENDPOINT_SPACING`/`PARALLEL_SPACING` in `FloatingEdge.tsx`) but the
    user still feels it needs a proper design pass, not just bigger numbers.
    Low priority.

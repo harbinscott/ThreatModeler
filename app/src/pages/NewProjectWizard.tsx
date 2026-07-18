@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { FrameworkPicker } from '../components/FrameworkPicker'
 import type { FrameworkSelection, NewProjectInput } from '../types/project'
 import './NewProjectWizard.css'
@@ -9,6 +9,7 @@ interface NewProjectWizardProps {
 }
 
 export function NewProjectWizard({ onCancel, onCreate }: NewProjectWizardProps) {
+  const nameInputRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [frameworks, setFrameworks] = useState<FrameworkSelection>({
@@ -19,6 +20,16 @@ export function NewProjectWizard({ onCancel, onCreate }: NewProjectWizardProps) 
   const [submitting, setSubmitting] = useState(false)
 
   const canSubmit = name.trim().length > 0 && !submitting
+
+  // Plain `autoFocus` is unreliable here — this wizard mounts fresh each time
+  // the user clicks "New Project" (App.tsx swaps it in via a state change,
+  // not on initial page load), and React's autoFocus-on-mount occasionally
+  // lost the race against React 19 StrictMode's double-invoked commit in dev,
+  // leaving the input visible but not actually focused. An explicit effect
+  // with a ref is the standard fix — idempotent even if it fires twice.
+  useEffect(() => {
+    nameInputRef.current?.focus()
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -44,11 +55,11 @@ export function NewProjectWizard({ onCancel, onCreate }: NewProjectWizardProps) 
         <label className="field">
           <span className="field__label">Project name</span>
           <input
+            ref={nameInputRef}
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Payments API"
-            autoFocus
           />
         </label>
 

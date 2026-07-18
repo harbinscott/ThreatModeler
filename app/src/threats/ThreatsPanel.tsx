@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { DreadScore, StrideCategory, Threat, ThreatStatus } from '../types/project'
-import { findCatalogEntry } from '../canvas/componentCatalog'
+import type { CustomStencil, DreadScore, StrideCategory, Threat, ThreatStatus } from '../types/project'
+import { findStencil } from '../canvas/stencils'
 import { useResizablePanel } from '../canvas/useResizablePanel'
 import { dreadAverage, dreadRiskLevel, dreadTotal, DREAD_RISK_COLOR } from './dreadEngine'
 import './ThreatsPanel.css'
@@ -8,6 +8,7 @@ import './ThreatsPanel.css'
 interface ThreatsPanelProps {
   threats: Threat[]
   dreadEnabled: boolean
+  customStencils?: CustomStencil[]
   /** Set by the canvas threat overlay ("view details" on a badge) to jump
    *  straight to that threat's detail panel, bypassing whatever filters are
    *  active. */
@@ -57,6 +58,7 @@ const NOTES_HINT: Record<ThreatStatus, string> = {
 export function ThreatsPanel({
   threats,
   dreadEnabled,
+  customStencils = [],
   focusThreatId,
   onChangeStatus,
   onChangeNotes,
@@ -123,7 +125,7 @@ export function ThreatsPanel({
               <option value="all">All types</option>
               {componentTypes.map((id) => (
                 <option key={id} value={id}>
-                  {findCatalogEntry(id)?.name ?? id}
+                  {findStencil(id, customStencils)?.name ?? id}
                 </option>
               ))}
             </select>
@@ -185,7 +187,7 @@ export function ThreatsPanel({
           {selected.componentType && (
             <div className="threats-detail__row">
               <span className="threats-detail__label">Component</span>
-              <span>{findCatalogEntry(selected.componentType)?.name ?? selected.componentType}</span>
+              <span>{findStencil(selected.componentType, customStencils)?.name ?? selected.componentType}</span>
             </div>
           )}
           <div className="threats-detail__row">

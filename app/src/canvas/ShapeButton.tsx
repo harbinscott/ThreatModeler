@@ -1,19 +1,20 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { IconChevronDown } from '@tabler/icons-react'
-import { catalogForType, type CatalogEntry } from './componentCatalog'
-import type { ElementType } from '../types/project'
+import { stencilsForType, type StencilOption } from './stencils'
+import type { CustomStencil, ElementType } from '../types/project'
 
 interface ShapeButtonProps {
   elementType: ElementType
   label: string
   icon: ReactNode
-  onAdd: (elementType: ElementType, preset?: CatalogEntry) => void
+  customStencils: CustomStencil[]
+  onAdd: (elementType: ElementType, preset?: StencilOption) => void
 }
 
-export function ShapeButton({ elementType, label, icon, onAdd }: ShapeButtonProps) {
+export function ShapeButton({ elementType, label, icon, customStencils, onAdd }: ShapeButtonProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
-  const presets = catalogForType(elementType)
+  const presets = stencilsForType(elementType, customStencils)
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {

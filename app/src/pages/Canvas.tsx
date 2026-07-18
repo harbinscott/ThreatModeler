@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -27,7 +27,7 @@ import { useResizablePanel } from '../canvas/useResizablePanel'
 import { useDiagramHistory } from '../canvas/useDiagramHistory'
 import { ThreatOverlayContext } from '../canvas/ThreatOverlayContext'
 import { OverlayMenu, type OverlayLayers } from '../canvas/OverlayMenu'
-import type { CatalogEntry } from '../canvas/componentCatalog'
+import { findStencil, type StencilDef, type StencilOption } from '../canvas/stencils'
 import { buildReportHtml, type ReportVariant } from '../reports/reportTemplate'
 import { PastaWorkflow } from '../pasta/PastaWorkflow'
 import { emptyPastaData, normalizePasta } from '../pasta/pastaDefaults'
@@ -44,13 +44,20 @@ import {
   IconNotes,
   IconDeviceFloppy,
   IconChevronDown,
-  IconCircle,
-  IconUserSquareRounded,
-  IconDatabase,
-  IconShield,
 } from '@tabler/icons-react'
+import { SHAPE_LABELS, SHAPE_ICONS } from '../canvas/shapeMeta'
 import '../canvas/canvas.css'
-import type { DiagramEdge, DiagramNode, DreadScore, ElementType, PastaData, Project, Threat, ThreatStatus } from '../types/project'
+import type {
+  CustomStencil,
+  DiagramEdge,
+  DiagramNode,
+  DreadScore,
+  ElementType,
+  PastaData,
+  Project,
+  Threat,
+  ThreatStatus,
+} from '../types/project'
 
 interface CanvasProps {
   projectId: string
@@ -62,24 +69,10 @@ type ViewTab = 'diagram' | 'threats' | 'table' | 'pasta'
 const edgeTypes = { floating: FloatingEdge }
 const EMPTY_THREAT_MAP = new Map<string, Threat[]>()
 
-const SHAPE_LABELS: Record<ElementType, string> = {
-  process: 'Process',
-  'external-entity': 'External Entity',
-  'data-store': 'Data Store',
-  'trust-boundary': 'Trust Boundary',
-}
-
-const SHAPE_ICONS: Record<ElementType, ReactNode> = {
-  process: <IconCircle size={15} color="#2563eb" aria-hidden="true" />,
-  'external-entity': <IconUserSquareRounded size={15} color="#2563eb" aria-hidden="true" />,
-  'data-store': <IconDatabase size={15} color="#2563eb" aria-hidden="true" />,
-  'trust-boundary': <IconShield size={15} color="#f59e0b" aria-hidden="true" />,
-}
-
 function makeNode(
   elementType: ElementType,
   index: number,
-  preset?: CatalogEntry,
+  stencil?: StencilDef,
   boundaryPreset?: BoundaryShapePreset
 ): DiagramNode {
   const base = {
@@ -87,12 +80,12 @@ function makeNode(
     type: elementType,
     position: { x: 120 + (index % 5) * 60, y: 120 + (index % 5) * 50 },
     data: {
-      label: preset ? preset.name : `New ${SHAPE_LABELS[elementType]}`,
+      label: stencil ? stencil.name : `New ${SHAPE_LABELS[elementType]}`,
       elementType,
-      componentType: preset?.id,
-      attributes: preset
-        ? preset.fields.reduce((acc, f) => ({ ...acc, [f.key]: '' }), {} as Record<string, string | boolean>)
-        : undefined,
+      componentType: stencil?.id,
+      attributes: stencil?.defaults ? { ...stencil.defaults } : undefined,
+      customFields: stencil?.customFields,
+      hiddenFieldKeys: stencil?.hiddenFieldKeys,
       boundaryShape: boundaryPreset?.shape,
     },
   }
@@ -253,8 +246,9 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     [setEdges]
   )
 
-  function addShape(elementType: ElementType, preset?: CatalogEntry) {
-    const node = makeNode(elementType, addedCount, preset)
+  function addShape(elementType: ElementType, preset?: StencilOption) {
+    const stencil = preset ? findStencil(preset.id, project?.customStencils ?? []) : undefined
+    const node = makeNode(elementType, addedCount, stencil)
     setAddedCount((c) => c + 1)
     setNodes((nds) => [...nds, node])
   }
@@ -531,6 +525,10 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     setProject({ ...project, ...patch } as Project)
   }
 
+  function saveCustomStencil(stencil: CustomStencil) {
+    updateProjectFields({ customStencils: [...(project?.customStencils ?? []), stencil] })
+  }
+
   return (
     <div className="canvas-page">
       <div className="canvas-toolbar">
@@ -676,6 +674,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
                         elementType={type}
                         label={SHAPE_LABELS[type]}
                         icon={SHAPE_ICONS[type]}
+                        customStencils={project.customStencils ?? []}
                         onAdd={addShape}
                       />
                     ))}
@@ -735,9 +734,11 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
             {selection && <div className="resize-handle-x" onMouseDown={startInspectorResize} />}
             <Inspector
               selection={selection}
+              customStencils={project.customStencils ?? []}
               onUpdateNode={updateNode}
               onUpdateEdge={updateEdge}
               onReverseEdge={reverseEdge}
+              onSaveCustomStencil={saveCustomStencil}
               onDelete={deleteSelection}
               onClose={clearSelection}
               width={inspectorWidth}
@@ -758,6 +759,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
                 <ElementsTable
                   nodes={nodes}
                   edges={edges}
+                  customStencils={project.customStencils ?? []}
                   onSelectNode={selectNode}
                   onSelectEdge={selectEdge}
                   onAddElement={addShape}
@@ -775,6 +777,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
           <ThreatsPanel
             threats={threats}
             dreadEnabled={project?.frameworks.dread ?? false}
+            customStencils={project?.customStencils ?? []}
             focusThreatId={focusThreatId}
             onChangeStatus={changeThreatStatus}
             onChangeNotes={changeThreatNotes}
@@ -788,6 +791,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
           <ElementsTable
             nodes={nodes}
             edges={edges}
+            customStencils={project.customStencils ?? []}
             onSelectNode={selectNode}
             onSelectEdge={selectEdge}
             onAddElement={addShape}
@@ -798,9 +802,11 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
           {selection && <div className="resize-handle-x" onMouseDown={startInspectorResize} />}
           <Inspector
             selection={selection}
+            customStencils={project.customStencils ?? []}
             onUpdateNode={updateNode}
             onUpdateEdge={updateEdge}
             onReverseEdge={reverseEdge}
+            onSaveCustomStencil={saveCustomStencil}
             onDelete={deleteSelection}
             onClose={clearSelection}
             width={inspectorWidth}

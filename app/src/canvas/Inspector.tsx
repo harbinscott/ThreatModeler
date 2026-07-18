@@ -1,24 +1,30 @@
 import { useEffect, useState } from 'react'
-import { catalogForType, findCatalogEntry } from './componentCatalog'
+import { stencilsForType, findStencil } from './stencils'
 import { Combobox, type ComboboxOption } from './Combobox'
 import { ColorSwatchPicker } from './ColorSwatchPicker'
-import {
-  dataFlowSecurityFields,
-  securityFieldsFor,
-  INTERACTOR_TYPE_TYPE_DEFAULT,
-  PROCESS_TYPE_CODE_TYPE_DEFAULT,
-  type AttributeFieldDef,
-} from './mstmAttributes'
-import type { ArrowStyle, AttributeValue, DiagramEdge, DiagramNode, LineStyle, NodeColors } from '../types/project'
+import { dataFlowSecurityFields, securityFieldsFor, DATA_FLOW_PROTOCOL_DEFAULTS, type AttributeFieldDef } from './mstmAttributes'
+import type {
+  ArrowStyle,
+  AttributeValue,
+  BoundaryType,
+  CustomFieldDef,
+  CustomStencil,
+  DiagramEdge,
+  DiagramNode,
+  LineStyle,
+  NodeColors,
+} from '../types/project'
 import './Inspector.css'
 
 type Selection = { kind: 'node'; node: DiagramNode } | { kind: 'edge'; edge: DiagramEdge } | null
 
 interface InspectorProps {
   selection: Selection
+  customStencils: CustomStencil[]
   onUpdateNode: (id: string, patch: Partial<DiagramNode['data']>) => void
   onUpdateEdge: (id: string, patch: Partial<DiagramEdge['data']>) => void
   onReverseEdge: (id: string) => void
+  onSaveCustomStencil: (stencil: CustomStencil) => void
   onDelete: () => void
   onClose: () => void
   width?: number
@@ -26,30 +32,25 @@ interface InspectorProps {
 
 const LINE_STYLES: LineStyle[] = ['solid', 'dashed', 'dotted']
 const ARROW_STYLES: ArrowStyle[] = ['one-way', 'two-way', 'none']
+const BOUNDARY_TYPES: BoundaryType[] = [
+  'Network Boundary',
+  'Internet Boundary',
+  'Corporate/Internal Network Boundary',
+  'Sandbox / Isolation Boundary',
+  'Kernel/User Mode Boundary',
+  'Cloud Account/Tenant Boundary',
+]
 
-export function Inspector({ selection, onUpdateNode, onUpdateEdge, onReverseEdge, onDelete, onClose, width }: InspectorProps) {
-  if (!selection) return null
+function slugify(label: string) {
+  return label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'field'
+}
 
-  return (
-    <aside className="inspector" style={width ? { width } : undefined}>
-      <div className="inspector__header">
-        <h2>{selection.kind === 'node' ? 'Element' : 'Connection'}</h2>
-        <button type="button" className="inspector__close" onClick={onClose} aria-label="Close">
-          ×
-        </button>
-      </div>
-
-      {selection.kind === 'node' ? (
-        <NodeInspector node={selection.node} onUpdate={onUpdateNode} />
-      ) : (
-        <EdgeInspector edge={selection.edge} onUpdate={onUpdateEdge} onReverse={onReverseEdge} />
-      )}
-
-      <button type="button" className="btn inspector__delete" onClick={onDelete}>
-        Delete {selection.kind === 'node' ? 'element' : 'connection'}
-      </button>
-    </aside>
-  )
+/** Unions two custom-field-def lists by key, keeping the first occurrence —
+ *  used when picking a stencil so its field definitions get added without
+ *  dropping any the user already added by hand on this instance. */
+function mergeFieldDefs(existing: CustomFieldDef[] = [], incoming: CustomFieldDef[] = []): CustomFieldDef[] {
+  const keys = new Set(existing.map((f) => f.key))
+  return [...existing, ...incoming.filter((f) => !keys.has(f.key))]
 }
 
 function NodeColorField({
@@ -117,54 +118,136 @@ function NodeColorField({
   )
 }
 
-function AttributeFieldRow({
-  field,
+function FieldInput({
+  type,
+  options,
   value,
   onChange,
 }: {
-  field: AttributeFieldDef
+  type: 'text' | 'boolean' | 'select'
+  options?: string[]
   value: AttributeValue | undefined
   onChange: (value: AttributeValue) => void
 }) {
+  if (type === 'boolean') {
+    return <input type="checkbox" checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} />
+  }
+  if (type === 'select') {
+    return (
+      <select value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)}>
+        <option value="">— not set —</option>
+        {options?.map((opt) => (
+          <option key={opt} value={opt}>
+            {opt}
+          </option>
+        ))}
+      </select>
+    )
+  }
+  return <input type="text" value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} />
+}
+
+/** A small inline form for adding a user-defined security property — the
+ *  "add custom properties" half of the custom-element ask. Type choices are
+ *  deliberately limited to the same three the built-in schema uses (text /
+ *  yes-no / choice list) so custom fields render identically to built-in
+ *  ones everywhere else in the app (Inspector, PDF export, table view). */
+function AddCustomFieldForm({ onAdd }: { onAdd: (def: CustomFieldDef) => void }) {
+  const [open, setOpen] = useState(false)
+  const [label, setLabel] = useState('')
+  const [type, setType] = useState<'text' | 'boolean' | 'select'>('text')
+  const [optionsText, setOptionsText] = useState('')
+
+  function submit() {
+    const trimmed = label.trim()
+    if (!trimmed) return
+    const key = `custom_${slugify(trimmed)}_${crypto.randomUUID().slice(0, 4)}`
+    const options =
+      type === 'select'
+        ? optionsText
+            .split(',')
+            .map((o) => o.trim())
+            .filter(Boolean)
+        : undefined
+    onAdd({ key, label: trimmed, type, options })
+    setLabel('')
+    setOptionsText('')
+    setType('text')
+    setOpen(false)
+  }
+
+  if (!open) {
+    return (
+      <button type="button" className="inspector__advanced-toggle" onClick={() => setOpen(true)}>
+        + Add custom property
+      </button>
+    )
+  }
+
   return (
-    <label className="inspector__field">
-      <span>{field.label}</span>
-      {field.type === 'boolean' ? (
-        <input type="checkbox" checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} />
-      ) : field.type === 'select' ? (
-        <select value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)}>
-          <option value="">— not set —</option>
-          {field.options?.map((opt) => (
-            <option key={opt} value={opt}>
-              {opt}
-            </option>
-          ))}
+    <div className="inspector__custom-field-form">
+      <label className="inspector__field">
+        <span>Property name</span>
+        <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Compliance zone" autoFocus />
+      </label>
+      <label className="inspector__field">
+        <span>Type</span>
+        <select value={type} onChange={(e) => setType(e.target.value as typeof type)}>
+          <option value="text">Text</option>
+          <option value="boolean">Yes / No</option>
+          <option value="select">Choice list</option>
         </select>
-      ) : (
-        <input type="text" value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} />
+      </label>
+      {type === 'select' && (
+        <label className="inspector__field">
+          <span>Options (comma-separated)</span>
+          <input type="text" value={optionsText} onChange={(e) => setOptionsText(e.target.value)} placeholder="e.g. PCI, HIPAA, PII" />
+        </label>
       )}
-    </label>
+      <div className="inspector__button-row">
+        <button type="button" className="btn" onClick={submit} disabled={!label.trim()}>
+          Add
+        </button>
+        <button type="button" className="btn" onClick={() => setOpen(false)}>
+          Cancel
+        </button>
+      </div>
+    </div>
   )
 }
 
-/** Microsoft Threat Modeling Tool's per-element-type security attribute schema,
- *  shown as a separate collapsible section from the component-catalog fields
- *  above (which stay preset-driven — "Web Server", "Database", etc). The two
- *  systems are layered, not merged: catalog fields cover a handful of
- *  architecture-relevant properties per preset; this covers the full MS-TMT
- *  field set per DFD element type, feeding ruleEngine.ts/dreadEngine.ts. */
+/** Microsoft Threat Modeling Tool's per-element-type security attribute
+ *  schema, plus any user-added custom properties, in one collapsible
+ *  section. Feeds ruleEngine.ts/dreadEngine.ts (built-in fields only —
+ *  custom fields are descriptive, not yet wired into scoring). Built-in
+ *  fields can be hidden per-instance (small × — restorable), custom fields
+ *  can be removed entirely (nothing else defines them, so hiding one is the
+ *  same as deleting it). */
 function SecurityPropertiesSection({
   fields,
+  customFields,
   attrs,
+  hiddenKeys,
   onSetAttribute,
+  onHideField,
+  onRestoreField,
+  onAddCustomField,
+  onRemoveCustomField,
 }: {
   fields: AttributeFieldDef[]
+  customFields: CustomFieldDef[]
   attrs: Record<string, AttributeValue>
+  hiddenKeys: string[]
   onSetAttribute: (key: string, value: AttributeValue) => void
+  onHideField: (key: string) => void
+  onRestoreField: (key: string) => void
+  onAddCustomField: (def: CustomFieldDef) => void
+  onRemoveCustomField: (key: string) => void
 }) {
   const [open, setOpen] = useState(false)
-  const visible = fields.filter((f) => !f.when || f.when(attrs))
-  if (visible.length === 0) return null
+  const applicable = fields.filter((f) => !f.when || f.when(attrs))
+  const visible = applicable.filter((f) => !hiddenKeys.includes(f.key))
+  const hidden = applicable.filter((f) => hiddenKeys.includes(f.key))
 
   return (
     <div className="inspector__security-fields">
@@ -172,75 +255,186 @@ function SecurityPropertiesSection({
         type="button"
         className="inspector__advanced-toggle"
         onClick={() => setOpen((o) => !o)}
-        title="Extended security fields from Microsoft's Threat Modeling Tool schema — feed into STRIDE threat descriptions and DREAD score suggestions."
+        title="Extended security fields — feed into STRIDE threat descriptions and DREAD score suggestions. Custom properties are descriptive only for now."
       >
         {open ? '▾' : '▸'} Security properties
       </button>
       {open && (
         <div className="inspector__security-fields-body">
           {visible.map((f) => (
-            <AttributeFieldRow key={f.key} field={f} value={attrs[f.key]} onChange={(v) => onSetAttribute(f.key, v)} />
+            <div className="inspector__field-row" key={f.key}>
+              <label className="inspector__field">
+                <span>{f.label}</span>
+                <FieldInput type={f.type} options={f.options} value={attrs[f.key]} onChange={(v) => onSetAttribute(f.key, v)} />
+              </label>
+              <button type="button" className="inspector__field-remove" title="Hide this field" onClick={() => onHideField(f.key)}>
+                ×
+              </button>
+            </div>
           ))}
+
+          {customFields.map((f) => (
+            <div className="inspector__field-row" key={f.key}>
+              <label className="inspector__field">
+                <span>{f.label}</span>
+                <FieldInput type={f.type} options={f.options} value={attrs[f.key]} onChange={(v) => onSetAttribute(f.key, v)} />
+              </label>
+              <button
+                type="button"
+                className="inspector__field-remove"
+                title="Remove this custom property"
+                onClick={() => onRemoveCustomField(f.key)}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+
+          {hidden.length > 0 && (
+            <div className="inspector__hidden-fields">
+              {hidden.map((f) => (
+                <button type="button" key={f.key} className="chip" title="Restore this field" onClick={() => onRestoreField(f.key)}>
+                  ↺ {f.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <AddCustomFieldForm onAdd={onAddCustomField} />
         </div>
       )}
     </div>
   )
 }
 
-function NodeInspector({
-  node,
-  onUpdate,
+function SaveAsCustomElement({
+  defaultName,
+  onSave,
 }: {
-  node: DiagramNode
-  onUpdate: (id: string, patch: Partial<DiagramNode['data']>) => void
+  defaultName: string
+  onSave: (name: string) => void
 }) {
-  const options = catalogForType(node.data.elementType)
-  const comboboxOptions: ComboboxOption[] = options.map((o) => ({ id: o.id, label: o.name }))
-  const activeEntry = findCatalogEntry(node.data.componentType)
-  const [searchText, setSearchText] = useState(activeEntry?.name ?? '')
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState(defaultName)
 
   useEffect(() => {
-    setSearchText(activeEntry?.name ?? '')
+    setName(defaultName)
+  }, [defaultName])
+
+  if (!open) {
+    return (
+      <button type="button" className="inspector__advanced-toggle" onClick={() => setOpen(true)}>
+        Save as custom element…
+      </button>
+    )
+  }
+
+  return (
+    <div className="inspector__custom-field-form">
+      <label className="inspector__field">
+        <span>Custom element name</span>
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+      </label>
+      <div className="inspector__button-row">
+        <button
+          type="button"
+          className="btn"
+          disabled={!name.trim()}
+          onClick={() => {
+            onSave(name.trim())
+            setOpen(false)
+          }}
+        >
+          Save
+        </button>
+        <button type="button" className="btn" onClick={() => setOpen(false)}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function NodeInspector({
+  node,
+  customStencils,
+  onUpdate,
+  onSaveCustomStencil,
+}: {
+  node: DiagramNode
+  customStencils: CustomStencil[]
+  onUpdate: (id: string, patch: Partial<DiagramNode['data']>) => void
+  onSaveCustomStencil: (stencil: CustomStencil) => void
+}) {
+  const stencilOptions = stencilsForType(node.data.elementType, customStencils)
+  const comboboxOptions: ComboboxOption[] = stencilOptions.map((o) => ({
+    id: o.id,
+    label: o.custom ? `${o.name} · Custom` : o.name,
+  }))
+  const activeStencil = findStencil(node.data.componentType, customStencils)
+  const [searchText, setSearchText] = useState(activeStencil?.name ?? node.data.componentType ?? '')
+
+  useEffect(() => {
+    setSearchText(activeStencil?.name ?? node.data.componentType ?? '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.id])
 
   function handleSelect(option: ComboboxOption) {
-    const entry = options.find((o) => o.id === option.id)
-    setSearchText(option.label)
+    const stencil = findStencil(option.id, customStencils)
+    setSearchText(option.label.replace(' · Custom', ''))
+    const nextAttrs = { ...node.data.attributes }
+    if (stencil?.defaults) {
+      for (const [key, value] of Object.entries(stencil.defaults)) {
+        if (nextAttrs[key] === undefined || nextAttrs[key] === '') nextAttrs[key] = value
+      }
+    }
     onUpdate(node.id, {
-      componentType: entry?.id,
-      attributes: entry
-        ? entry.fields.reduce(
-            (acc, f) => ({ ...acc, [f.key]: node.data.attributes?.[f.key] ?? '' }),
-            {} as Record<string, string | boolean>
-          )
-        : node.data.attributes,
+      componentType: option.id,
+      attributes: nextAttrs,
+      customFields: mergeFieldDefs(node.data.customFields, stencil?.customFields),
+      hiddenFieldKeys: stencil?.hiddenFieldKeys ?? node.data.hiddenFieldKeys,
     })
   }
 
-  function setAttribute(key: string, value: string | boolean) {
+  function setAttribute(key: string, value: AttributeValue) {
     onUpdate(node.id, { attributes: { ...node.data.attributes, [key]: value } })
   }
 
-  // MS-TMT security fields are layered on top of the catalog fields above —
-  // drop any whose key a catalog preset already covers so the same value
-  // doesn't render as two separate inputs.
-  const catalogKeys = new Set(activeEntry?.fields.map((f) => f.key) ?? [])
-  const securityFields = securityFieldsFor(node.data.elementType).filter((f) => !catalogKeys.has(f.key))
-  const attrs = node.data.attributes ?? {}
-
-  function setSecurityAttribute(key: string, value: AttributeValue) {
-    const nextAttrs = { ...node.data.attributes, [key]: value }
-    if (key === 'processType') {
-      const codeDefault = PROCESS_TYPE_CODE_TYPE_DEFAULT[value as string]
-      if (codeDefault) nextAttrs.codeType = codeDefault
-    }
-    if (key === 'interactorType') {
-      const typeDefault = INTERACTOR_TYPE_TYPE_DEFAULT[value as string]
-      if (typeDefault) nextAttrs.type = typeDefault
-    }
-    onUpdate(node.id, { attributes: nextAttrs })
+  function hideField(key: string) {
+    onUpdate(node.id, { hiddenFieldKeys: [...(node.data.hiddenFieldKeys ?? []), key] })
   }
+
+  function restoreField(key: string) {
+    onUpdate(node.id, { hiddenFieldKeys: (node.data.hiddenFieldKeys ?? []).filter((k) => k !== key) })
+  }
+
+  function addCustomField(def: CustomFieldDef) {
+    onUpdate(node.id, { customFields: [...(node.data.customFields ?? []), def] })
+  }
+
+  function removeCustomField(key: string) {
+    const { [key]: _removed, ...restAttrs } = node.data.attributes ?? {}
+    onUpdate(node.id, {
+      customFields: (node.data.customFields ?? []).filter((f) => f.key !== key),
+      attributes: restAttrs,
+    })
+  }
+
+  function saveCustomElement(name: string) {
+    const attrs = node.data.attributes ?? {}
+    const defaults = Object.fromEntries(Object.entries(attrs).filter(([, v]) => v !== '' && v !== undefined))
+    onSaveCustomStencil({
+      id: crypto.randomUUID(),
+      name,
+      elementType: node.data.elementType,
+      defaults,
+      customFields: node.data.customFields ?? [],
+      hiddenFieldKeys: node.data.hiddenFieldKeys,
+    })
+  }
+
+  const securityFields = securityFieldsFor(node.data.elementType)
+  const attrs = node.data.attributes ?? {}
 
   return (
     <div className="inspector__body">
@@ -264,9 +458,26 @@ function NodeInspector({
 
       <NodeColorField colors={node.data.colors} onChange={(colors) => onUpdate(node.id, { colors })} />
 
-      {options.length > 0 && (
+      {node.data.elementType === 'trust-boundary' && (
+        <label className="inspector__field">
+          <span>Boundary type</span>
+          <select
+            value={node.data.boundaryType ?? ''}
+            onChange={(e) => onUpdate(node.id, { boundaryType: (e.target.value || undefined) as never })}
+          >
+            <option value="">— not set —</option>
+            {BOUNDARY_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      {stencilOptions.length > 0 && (
         <div className="inspector__field">
-          <span>Component type</span>
+          <span>Type</span>
           <Combobox
             options={comboboxOptions}
             value={searchText}
@@ -274,45 +485,23 @@ function NodeInspector({
             onChangeText={setSearchText}
             onSelect={handleSelect}
           />
+          <div className="inspector__stencil-actions">
+            <SaveAsCustomElement defaultName={searchText || node.data.label} onSave={saveCustomElement} />
+          </div>
         </div>
       )}
 
-      {activeEntry && (
-        <div className="inspector__catalog-fields">
-          {activeEntry.fields.map((field) => (
-            <label className="inspector__field" key={field.key}>
-              <span>{field.label}</span>
-              {field.type === 'boolean' ? (
-                <input
-                  type="checkbox"
-                  checked={Boolean(node.data.attributes?.[field.key])}
-                  onChange={(e) => setAttribute(field.key, e.target.checked)}
-                />
-              ) : field.type === 'select' ? (
-                <select
-                  value={(node.data.attributes?.[field.key] as string) ?? ''}
-                  onChange={(e) => setAttribute(field.key, e.target.value)}
-                >
-                  <option value="">— not set —</option>
-                  {field.options?.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  value={(node.data.attributes?.[field.key] as string) ?? ''}
-                  onChange={(e) => setAttribute(field.key, e.target.value)}
-                />
-              )}
-            </label>
-          ))}
-        </div>
-      )}
-
-      <SecurityPropertiesSection fields={securityFields} attrs={attrs} onSetAttribute={setSecurityAttribute} />
+      <SecurityPropertiesSection
+        fields={securityFields}
+        customFields={node.data.customFields ?? []}
+        attrs={attrs}
+        hiddenKeys={node.data.hiddenFieldKeys ?? []}
+        onSetAttribute={setAttribute}
+        onHideField={hideField}
+        onRestoreField={restoreField}
+        onAddCustomField={addCustomField}
+        onRemoveCustomField={removeCustomField}
+      />
     </div>
   )
 }
@@ -329,7 +518,36 @@ function EdgeInspector({
   const attrs = edge.data?.attributes ?? {}
 
   function setSecurityAttribute(key: string, value: AttributeValue) {
-    onUpdate(edge.id, { attributes: { ...edge.data?.attributes, [key]: value } })
+    const nextAttrs = { ...edge.data?.attributes, [key]: value }
+    if (key === 'protocol') {
+      const protocolDefaults = DATA_FLOW_PROTOCOL_DEFAULTS[value as keyof typeof DATA_FLOW_PROTOCOL_DEFAULTS]
+      if (protocolDefaults) {
+        for (const [k, v] of Object.entries(protocolDefaults)) {
+          if (nextAttrs[k] === undefined || nextAttrs[k] === '') nextAttrs[k] = v
+        }
+      }
+    }
+    onUpdate(edge.id, { attributes: nextAttrs })
+  }
+
+  function hideField(key: string) {
+    onUpdate(edge.id, { hiddenFieldKeys: [...(edge.data?.hiddenFieldKeys ?? []), key] })
+  }
+
+  function restoreField(key: string) {
+    onUpdate(edge.id, { hiddenFieldKeys: (edge.data?.hiddenFieldKeys ?? []).filter((k) => k !== key) })
+  }
+
+  function addCustomField(def: CustomFieldDef) {
+    onUpdate(edge.id, { customFields: [...(edge.data?.customFields ?? []), def] })
+  }
+
+  function removeCustomField(key: string) {
+    const { [key]: _removed, ...restAttrs } = edge.data?.attributes ?? {}
+    onUpdate(edge.id, {
+      customFields: (edge.data?.customFields ?? []).filter((f) => f.key !== key),
+      attributes: restAttrs,
+    })
   }
 
   return (
@@ -389,7 +607,57 @@ function EdgeInspector({
         </button>
       </div>
 
-      <SecurityPropertiesSection fields={dataFlowSecurityFields()} attrs={attrs} onSetAttribute={setSecurityAttribute} />
+      <SecurityPropertiesSection
+        fields={dataFlowSecurityFields()}
+        customFields={edge.data?.customFields ?? []}
+        attrs={attrs}
+        hiddenKeys={edge.data?.hiddenFieldKeys ?? []}
+        onSetAttribute={setSecurityAttribute}
+        onHideField={hideField}
+        onRestoreField={restoreField}
+        onAddCustomField={addCustomField}
+        onRemoveCustomField={removeCustomField}
+      />
     </div>
+  )
+}
+
+export function Inspector({
+  selection,
+  customStencils,
+  onUpdateNode,
+  onUpdateEdge,
+  onReverseEdge,
+  onSaveCustomStencil,
+  onDelete,
+  onClose,
+  width,
+}: InspectorProps) {
+  if (!selection) return null
+
+  return (
+    <aside className="inspector" style={width ? { width } : undefined}>
+      <div className="inspector__header">
+        <h2>{selection.kind === 'node' ? 'Element' : 'Connection'}</h2>
+        <button type="button" className="inspector__close" onClick={onClose} aria-label="Close">
+          ×
+        </button>
+      </div>
+
+      {selection.kind === 'node' ? (
+        <NodeInspector
+          node={selection.node}
+          customStencils={customStencils}
+          onUpdate={onUpdateNode}
+          onSaveCustomStencil={onSaveCustomStencil}
+        />
+      ) : (
+        <EdgeInspector edge={selection.edge} onUpdate={onUpdateEdge} onReverse={onReverseEdge} />
+      )}
+
+      <button type="button" className="btn inspector__delete" onClick={onDelete}>
+        Delete {selection.kind === 'node' ? 'element' : 'connection'}
+      </button>
+    </aside>
   )
 }

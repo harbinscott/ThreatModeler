@@ -168,6 +168,57 @@
   color: var(--accent);
 }
 
+.inspector__field-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.4rem;
+}
+
+.inspector__field-row .inspector__field {
+  flex: 1;
+  min-width: 0;
+}
+
+.inspector__field-remove {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  cursor: pointer;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.inspector__field-remove:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.inspector__hidden-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.2rem;
+}
+
+.inspector__custom-field-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+  padding: 0.6rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.inspector__stencil-actions {
+  margin-top: 0.3rem;
+}
+
 .inspector__delete {
   margin-top: auto;
   color: var(--danger);
