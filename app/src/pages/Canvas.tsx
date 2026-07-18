@@ -30,6 +30,10 @@ import type { CatalogEntry } from '../canvas/componentCatalog'
 import { buildReportHtml, type ReportVariant } from '../reports/reportTemplate'
 import { PastaWorkflow } from '../pasta/PastaWorkflow'
 import { emptyPastaData, normalizePasta } from '../pasta/pastaDefaults'
+import { getDiagramMessages } from '../threats/diagnostics'
+import { ThreatModelInfoDialog } from '../components/ThreatModelInfoDialog'
+import { MessagesDialog } from '../components/MessagesDialog'
+import { NotesDialog } from '../components/NotesDialog'
 import '../canvas/canvas.css'
 import type { DiagramEdge, DiagramNode, DreadScore, ElementType, PastaData, Project, Threat, ThreatStatus } from '../types/project'
 
@@ -91,6 +95,9 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
   const [focusThreatId, setFocusThreatId] = useState<string | null>(null)
   const [overlayLayers, setOverlayLayers] = useState<OverlayLayers>({ threatBadges: true })
   const [ribbonOpen, setRibbonOpen] = useState(true)
+  const [showInfoDialog, setShowInfoDialog] = useState(false)
+  const [showMessagesDialog, setShowMessagesDialog] = useState(false)
+  const [showNotesDialog, setShowNotesDialog] = useState(false)
   const { size: inspectorWidth, startDrag: startInspectorResize } = useResizablePanel({
     axis: 'x',
     initial: 280,
@@ -466,6 +473,12 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
 
   const openThreatCount = threats.filter((t) => t.status === 'open').length
   const hasRibbon = view === 'diagram' || view === 'threats'
+  const diagramMessages = getDiagramMessages({ nodes, edges }, threats)
+  const warningCount = diagramMessages.filter((m) => m.severity === 'warning').length
+
+  function updateProjectFields(patch: Partial<Project>) {
+    setProject({ ...project, ...patch } as Project)
+  }
 
   return (
     <div className="canvas-page">
@@ -555,6 +568,15 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
                 </button>
               </>
             )}
+            <button type="button" className="btn" onClick={() => setShowInfoDialog(true)}>
+              Info
+            </button>
+            <button type="button" className="btn" onClick={() => setShowMessagesDialog(true)}>
+              Messages{warningCount > 0 ? ` (${warningCount})` : ''}
+            </button>
+            <button type="button" className="btn" onClick={() => setShowNotesDialog(true)}>
+              Notes
+            </button>
             <ExportMenu onExport={handleExport} exporting={exporting} />
             <button type="button" className="btn btn--primary" onClick={handleSave} disabled={saveState === 'saving'}>
               {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved ✓' : 'Save'}
@@ -709,6 +731,18 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
             dreadEnabled={project.frameworks.dread}
           />
         </div>
+      )}
+
+      {showInfoDialog && (
+        <ThreatModelInfoDialog project={project} onChange={updateProjectFields} onClose={() => setShowInfoDialog(false)} />
+      )}
+      {showMessagesDialog && <MessagesDialog messages={diagramMessages} onClose={() => setShowMessagesDialog(false)} />}
+      {showNotesDialog && (
+        <NotesDialog
+          notes={project.notes ?? ''}
+          onChange={(notes) => updateProjectFields({ notes })}
+          onClose={() => setShowNotesDialog(false)}
+        />
       )}
     </div>
   )

@@ -84,6 +84,14 @@ export interface PastaData {
   stage7: { businessImpact: string; residualRisk: string; countermeasures: string }
 }
 
+export interface ThreatModelInfo {
+  owner: string
+  contributors: string
+  reviewer: string
+  assumptions: string
+  externalDependencies: string
+}
+
 export interface Project {
   id: string
   name: string
@@ -92,6 +100,8 @@ export interface Project {
   diagram: Diagram
   threats: Threat[]
   pasta?: PastaData
+  info?: ThreatModelInfo
+  notes?: string
   createdAt: string
   updatedAt: string
 }

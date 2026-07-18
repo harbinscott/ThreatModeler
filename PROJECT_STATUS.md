@@ -305,6 +305,24 @@ handle multiple selected nodes/edges at once (previously only ever deleted
 the primary toolbar row, Diagram tab only, disabled when the respective stack
 is empty.
 
+**Threat Model Info / Messages / Notes dialogs** — `src/components/Modal.tsx`
+is a new generic portal-based centered dialog (backdrop click / Escape / ×
+all close it), reused by all three rather than building three one-off
+overlays. `ThreatModelInfoDialog.tsx` edits a new `Project.info` object
+(owner/contributors/reviewer/assumptions/externalDependencies) plus the
+existing `name` (read-only here, rename via the toolbar) and `description`
+fields. `MessagesDialog.tsx` surfaces `src/threats/diagnostics.ts`'s
+`getDiagramMessages()` — a handful of structural checks (disconnected
+elements, flows that skip a Process, empty trust boundaries, no threats
+generated yet) — intentionally simple, not an extensible rule-plugin system.
+`NotesDialog.tsx` is a single freeform textarea bound to a new
+`Project.notes` string, explicitly not read by the rule engine. All three
+launch from new buttons in the toolbar's primary row (`Canvas.tsx`), visible
+on every tab since they're project-level, not diagram-specific; edits go
+through a new `updateProjectFields()` helper that patches local `project`
+state directly (same pattern as `commitRename`) — nothing auto-saves, same as
+everywhere else, picked up by the next manual Save.
+
 **PDF export** — `src/reports/reportTemplate.ts` (`buildReportHtml`, 'summary' or
 'detailed' variant, light print-friendly theme) + `src/canvas/ExportMenu.tsx`.
 Diagram captured via `html-to-image`'s `toPng` on the `.react-flow` DOM node
