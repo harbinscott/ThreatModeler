@@ -493,13 +493,23 @@ always.
 
 1. **[Done, awaiting verification]** Trust boundary resize/reshape + shape
    presets — see "Trust boundary resize/reshape + shape presets" above.
-   Implemented and typechecked this session but the *session ended before the
-   user could test it live* — this is the first thing to verify next time.
-   Checkpoint: add one of each shape (Square/Rectangle/Circle/Cloud) from the
-   Trust Boundary button's caret, confirm they render distinctly and resize
-   correctly (including into non-square proportions), and confirm an old
-   project with pre-existing rectangle boundaries still loads/looks correct
-   (backward-compat check for the new optional `boundaryShape` field).
+   Implemented and typechecked, but not yet tested live by the user.
+   **Found and fixed a real bug on resume**: resize handles were
+   unclickable/undraggable. Root cause — `.react-flow__node-trust-boundary`
+   has `pointer-events: none !important` (intentional, for click-through to
+   nodes underneath), which is *inherited* by every descendant including
+   `NodeResizer`'s handle/line elements; only the label
+   (`.dfd-node--boundary__label`) had its own `pointer-events: auto`
+   override. Fixed by adding the same override to `.boundary-resize-handle`
+   and `.boundary-resize-line` in `canvas.css`. Verified against React Flow's
+   compiled source that these classnames land on the actual interactive
+   `<div>` (not a wrapper), so the fix should be correct — but still needs a
+   live check. Checkpoint: select a trust boundary, confirm the 8 resize
+   handles now actually drag; add one of each shape (Square/Rectangle/Circle/
+   Cloud) from the Trust Boundary button's caret and confirm they render
+   distinctly and resize correctly into non-square proportions; open an old
+   project with pre-existing rectangle boundaries and confirm it still loads
+   fine (backward-compat check for the new optional `boundaryShape` field).
 2. **Trust boundary shape editing after creation** — new gap identified while
    building #1: shape can only be picked at creation time via the toolbar
    preset; there's no way to change an existing boundary's shape afterward.

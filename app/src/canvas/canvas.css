@@ -442,8 +442,15 @@
   height: 8px;
   background: #f59e0b;
   border: none;
+  /* Opt back in to pointer events — the parent trust-boundary node has
+     pointer-events:none !important for click-through-to-nodes-underneath
+     (see .react-flow__node-trust-boundary above), which is inherited by
+     every descendant including these resize handles unless overridden here.
+     Without this, NodeResizer's handles render but can't be dragged. */
+  pointer-events: auto;
 }
 
 .boundary-resize-line {
   border-color: #f59e0b;
+  pointer-events: auto;
 }
