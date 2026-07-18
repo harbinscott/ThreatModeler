@@ -48,16 +48,19 @@ import {
 import { SHAPE_LABELS, SHAPE_ICONS } from '../canvas/shapeMeta'
 import '../canvas/canvas.css'
 import type {
+  ComplianceTag,
   CustomStencil,
   DiagramEdge,
   DiagramNode,
   DreadScore,
   ElementType,
   PastaData,
+  PciScope,
   Project,
   Threat,
   ThreatStatus,
 } from '../types/project'
+import { computeEffectiveComplianceTags, computeEffectivePciScope } from '../canvas/complianceTags'
 
 interface CanvasProps {
   projectId: string
@@ -68,6 +71,8 @@ type ViewTab = 'diagram' | 'threats' | 'table' | 'pasta'
 
 const edgeTypes = { floating: FloatingEdge }
 const EMPTY_THREAT_MAP = new Map<string, Threat[]>()
+const EMPTY_COMPLIANCE_MAP = new Map<string, Set<ComplianceTag>>()
+const EMPTY_PCI_SCOPE_MAP = new Map<string, PciScope>()
 
 function makeNode(
   elementType: ElementType,
@@ -114,7 +119,11 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
   const [nameDraft, setNameDraft] = useState('')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [focusThreatId, setFocusThreatId] = useState<string | null>(null)
-  const [overlayLayers, setOverlayLayers] = useState<OverlayLayers>({ threatBadges: true, dreadRiskColoring: false })
+  const [overlayLayers, setOverlayLayers] = useState<OverlayLayers>({
+    threatBadges: true,
+    dreadRiskColoring: false,
+    complianceTags: false,
+  })
   const [ribbonOpen, setRibbonOpen] = useState(true)
   const [showInfoDialog, setShowInfoDialog] = useState(false)
   const [showMessagesDialog, setShowMessagesDialog] = useState(false)
@@ -385,6 +394,12 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     return map
   }, [threats, overlayLayers.dreadRiskColoring])
 
+  // Always computed regardless of the canvas overlay toggle — that toggle
+  // only controls whether the diagram badge renders, not whether other
+  // views (the Threats tab) get to know about compliance scope.
+  const complianceTagsByTarget = useMemo(() => computeEffectiveComplianceTags({ nodes, edges }), [nodes, edges])
+  const pciScopeByTarget = useMemo(() => computeEffectivePciScope({ nodes, edges }), [nodes, edges])
+
   function viewThreatOnCanvas(id: string) {
     setFocusThreatId(id)
     setView('threats')
@@ -581,17 +596,17 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
             </button>
             <button
               type="button"
-              className={`tab${view === 'threats' ? ' tab--active' : ''}`}
-              onClick={() => setView('threats')}
-            >
-              Threats{openThreatCount > 0 ? ` (${openThreatCount})` : ''}
-            </button>
-            <button
-              type="button"
               className={`tab${view === 'table' ? ' tab--active' : ''}`}
               onClick={() => setView('table')}
             >
               Table
+            </button>
+            <button
+              type="button"
+              className={`tab${view === 'threats' ? ' tab--active' : ''}`}
+              onClick={() => setView('threats')}
+            >
+              Threats{openThreatCount > 0 ? ` (${openThreatCount})` : ''}
             </button>
             {project.frameworks.pasta && (
               <button
@@ -715,6 +730,8 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
                 value={{
                   threatsByTarget: overlayLayers.threatBadges ? openThreatsByTarget : EMPTY_THREAT_MAP,
                   riskColorByTarget,
+                  complianceTagsByTarget: overlayLayers.complianceTags ? complianceTagsByTarget : EMPTY_COMPLIANCE_MAP,
+                  pciScopeByTarget: overlayLayers.complianceTags ? pciScopeByTarget : EMPTY_PCI_SCOPE_MAP,
                   onViewThreat: viewThreatOnCanvas,
                 }}
               >
@@ -787,6 +804,9 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
             threats={threats}
             dreadEnabled={project?.frameworks.dread ?? false}
             customStencils={project?.customStencils ?? []}
+            complianceTagsByTarget={complianceTagsByTarget}
+            pciScopeByTarget={pciScopeByTarget}
+            diagram={{ nodes, edges }}
             focusThreatId={focusThreatId}
             onChangeStatus={changeThreatStatus}
             onChangeNotes={changeThreatNotes}

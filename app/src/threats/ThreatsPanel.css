@@ -168,6 +168,35 @@
   flex-shrink: 0;
 }
 
+.threats-row__compliance {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.threats-row__compliance-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.threats-detail__compliance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  justify-content: flex-end;
+}
+
+.threats-detail__compliance-chip {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+
 .threats-dread {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -199,7 +228,79 @@
 }
 
 .threats-dread__field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   font-size: 0.8rem;
+  color: var(--text);
+}
+
+.dread-explain-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0;
+  cursor: default;
+}
+
+.dread-explain-icon:hover {
+  text-decoration: underline;
+}
+
+.dread-explain-popover {
+  z-index: 2000;
+  width: 280px;
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dread-explain-popover__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.dread-explain-popover__group:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.4rem;
+}
+
+.dread-explain-popover__group-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.dread-explain-popover__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-size: 0.73rem;
+  color: var(--text-muted);
+}
+
+.dread-explain-popover__row span:last-child {
+  flex-shrink: 0;
+  font-weight: 600;
   color: var(--text);
 }
 

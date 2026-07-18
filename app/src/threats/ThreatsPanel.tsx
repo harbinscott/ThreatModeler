@@ -1,14 +1,27 @@
-import { useEffect, useMemo, useState } from 'react'
-import type { CustomStencil, DreadScore, StrideCategory, Threat, ThreatStatus } from '../types/project'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import type { ComplianceTag, CustomStencil, Diagram, DreadScore, PciScope, StrideCategory, Threat, ThreatStatus } from '../types/project'
 import { findStencil } from '../canvas/stencils'
+import { COMPLIANCE_TAG_COLOR, COMPLIANCE_TAG_LABELS } from '../canvas/complianceTags'
 import { useResizablePanel } from '../canvas/useResizablePanel'
-import { dreadAverage, dreadRiskLevel, dreadTotal, DREAD_RISK_COLOR } from './dreadEngine'
+import { dreadAverage, dreadRiskLevel, dreadTotal, DREAD_RISK_COLOR, explainDreadScore, type DreadContribution } from './dreadEngine'
 import './ThreatsPanel.css'
 
 interface ThreatsPanelProps {
   threats: Threat[]
   dreadEnabled: boolean
   customStencils?: CustomStencil[]
+  /** Effective (direct + propagated) compliance tags per target id — always
+   *  computed regardless of whether the canvas "Compliance tags" overlay is
+   *  toggled on, since that toggle only controls the diagram badge, not
+   *  whether this panel should know about them. */
+  complianceTagsByTarget?: Map<string, Set<ComplianceTag>>
+  /** Effective PCI scope per target id, same gating as complianceTagsByTarget. */
+  pciScopeByTarget?: Map<string, PciScope>
+  /** Needed to explain *why* a DREAD field is suggested at its current value
+   *  (the hover breakdown) — same diagram the rule/DREAD engines already run
+   *  against. */
+  diagram: Diagram
   /** Set by the canvas threat overlay ("view details" on a badge) to jump
    *  straight to that threat's detail panel, bypassing whatever filters are
    *  active. */
@@ -17,6 +30,13 @@ interface ThreatsPanelProps {
   onChangeNotes: (id: string, notes: string) => void
   onChangeDread: (id: string, dread: DreadScore) => void
   onDelete: (id: string) => void
+}
+
+const EMPTY_COMPLIANCE_TAGS = new Map<string, Set<ComplianceTag>>()
+const EMPTY_PCI_SCOPE = new Map<string, PciScope>()
+
+function complianceChipLabel(tag: ComplianceTag, pciScope: PciScope | undefined): string {
+  return tag === 'PCI' && pciScope ? `PCI · ${pciScope}` : tag
 }
 
 const DREAD_FIELDS: { key: keyof DreadScore; label: string; hint: string }[] = [
@@ -55,10 +75,83 @@ const NOTES_HINT: Record<ThreatStatus, string> = {
   'false-positive': 'Why is this a false positive?',
 }
 
+/** Hover-triggered breakdown of why *every* DREAD field's suggested value is
+ *  what it is, grouped by field in one card rather than five separate icons
+ *  — base score plus each contributing adjustment, labeled. Portal-rendered
+ *  into document.body for the same reason ThreatBadge's popover is: this
+ *  panel isn't a React Flow node, but the detail column can still get
+ *  clipped by its own overflow-y:auto, so an inline-positioned popover could
+ *  get cut off at the panel edge. */
+function DreadScoreExplain({
+  breakdown,
+  fields,
+}: {
+  breakdown: DreadContribution[]
+  fields: { key: keyof DreadScore; label: string }[]
+}) {
+  const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const iconRef = useRef<HTMLButtonElement>(null)
+
+  if (breakdown.length === 0) return null
+
+  function show() {
+    if (iconRef.current) {
+      const rect = iconRef.current.getBoundingClientRect()
+      setPos({ top: rect.bottom + 6, left: Math.min(rect.left, window.innerWidth - 300) })
+    }
+    setOpen(true)
+  }
+
+  return (
+    <>
+      <button
+        ref={iconRef}
+        type="button"
+        className="dread-explain-icon"
+        onMouseEnter={show}
+        onMouseLeave={() => setOpen(false)}
+        aria-label="Why these scores?"
+      >
+        ⓘ Why these scores?
+      </button>
+      {open &&
+        pos &&
+        createPortal(
+          <div className="dread-explain-popover" style={{ position: 'fixed', top: pos.top, left: pos.left }}>
+            {fields.map((f) => {
+              const contributions = breakdown.filter((c) => c.key === f.key)
+              if (contributions.length === 0) return null
+              const total = Math.max(1, Math.min(10, contributions.reduce((sum, c) => sum + c.amount, 0)))
+              return (
+                <div className="dread-explain-popover__group" key={f.key}>
+                  <div className="dread-explain-popover__group-header">
+                    <span>{f.label}</span>
+                    <span>{total}</span>
+                  </div>
+                  {contributions.map((c, i) => (
+                    <div className="dread-explain-popover__row" key={i}>
+                      <span>{c.label}</span>
+                      <span>{c.amount > 0 ? `+${c.amount}` : c.amount}</span>
+                    </div>
+                  ))}
+                </div>
+              )
+            })}
+          </div>,
+          document.body
+        )}
+    </>
+  )
+}
+
 export function ThreatsPanel({
   threats,
   dreadEnabled,
   customStencils = [],
+  complianceTagsByTarget = EMPTY_COMPLIANCE_TAGS,
+  pciScopeByTarget = EMPTY_PCI_SCOPE,
+  diagram,
   focusThreatId,
   onChangeStatus,
   onChangeNotes,
@@ -96,6 +189,7 @@ export function ThreatsPanel({
   })
   const sorted = [...filtered].sort((a, b) => a.category.localeCompare(b.category))
   const selected = threats.find((t) => t.id === selectedId) ?? null
+  const dreadBreakdown = selected ? explainDreadScore(selected, diagram) : []
 
   return (
     <div className="threats-layout">
@@ -151,6 +245,25 @@ export function ThreatsPanel({
                 <span className="threats-row__title">{t.title}</span>
                 <span className="threats-row__target">{t.targetLabel}</span>
               </span>
+              {(() => {
+                const tags = complianceTagsByTarget.get(t.targetId)
+                if (!tags || tags.size === 0) return null
+                const pciScope = pciScopeByTarget.get(t.targetId)
+                return (
+                  <span className="threats-row__compliance">
+                    {[...tags]
+                      .sort()
+                      .map((tag) => (
+                        <span
+                          key={tag}
+                          className="threats-row__compliance-dot"
+                          style={{ background: COMPLIANCE_TAG_COLOR[tag] }}
+                          title={tag === 'PCI' && pciScope ? `${COMPLIANCE_TAG_LABELS[tag]} — ${pciScope}` : COMPLIANCE_TAG_LABELS[tag]}
+                        />
+                      ))}
+                  </span>
+                )
+              })()}
               {dreadEnabled &&
                 (() => {
                   const avg = dreadAverage(t.dread)
@@ -190,6 +303,30 @@ export function ThreatsPanel({
               <span>{findStencil(selected.componentType, customStencils)?.name ?? selected.componentType}</span>
             </div>
           )}
+          {(() => {
+            const tags = complianceTagsByTarget.get(selected.targetId)
+            if (!tags || tags.size === 0) return null
+            const pciScope = pciScopeByTarget.get(selected.targetId)
+            return (
+              <div className="threats-detail__row">
+                <span className="threats-detail__label">Compliance</span>
+                <span className="threats-detail__compliance">
+                  {[...tags]
+                    .sort()
+                    .map((tag) => (
+                      <span
+                        key={tag}
+                        className="threats-detail__compliance-chip"
+                        style={{ background: COMPLIANCE_TAG_COLOR[tag] }}
+                        title={tag === 'PCI' && pciScope ? `${COMPLIANCE_TAG_LABELS[tag]} — ${pciScope}` : COMPLIANCE_TAG_LABELS[tag]}
+                      >
+                        {complianceChipLabel(tag, pciScope)}
+                      </span>
+                    ))}
+                </span>
+              </div>
+            )
+          })()}
           <div className="threats-detail__row">
             <span className="threats-detail__label">Source</span>
             <span className={`threats-source threats-source--${selected.source}`}>{selected.source}</span>
@@ -206,6 +343,7 @@ export function ThreatsPanel({
                 <span className="threats-detail__label">DREAD score</span>
                 {selected.dreadNeedsReview && <span className="threats-dread__review-badge">Needs review</span>}
               </div>
+              <DreadScoreExplain breakdown={dreadBreakdown} fields={DREAD_FIELDS} />
               {DREAD_FIELDS.map((f) => (
                 <label className="threats-dread__field" key={f.key} title={f.hint}>
                   <span className="threats-dread__field-label">{f.label}</span>

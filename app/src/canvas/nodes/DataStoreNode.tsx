@@ -3,6 +3,7 @@ import { FourWayHandles } from '../handles'
 import { EditableLabel } from '../EditableLabel'
 import { resolveNodeStyle, withRiskRing } from '../nodeColor'
 import { ThreatBadge } from '../ThreatBadge'
+import { ComplianceBadge } from '../ComplianceBadge'
 import { useThreatOverlay } from '../ThreatOverlayContext'
 import type { DiagramNode } from '../../types/project'
 
@@ -16,6 +17,7 @@ export function DataStoreNode({ id, data, selected }: NodeProps<DiagramNode>) {
       <FourWayHandles />
       <EditableLabel nodeId={id} value={data.label} />
       <ThreatBadge targetId={id} />
+      <ComplianceBadge targetId={id} />
     </div>
   )
 }

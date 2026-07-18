@@ -1,4 +1,5 @@
-import type { AttributeValue, Diagram, DreadScore, StrideCategory, Threat } from '../types/project'
+import type { AttributeValue, ComplianceTag, Diagram, DreadScore, StrideCategory, Threat } from '../types/project'
+import { computeEffectiveComplianceTags } from '../canvas/complianceTags'
 
 const BASE_SCORES: Record<StrideCategory, Required<DreadScore>> = {
   S: { damage: 6, reproducibility: 6, exploitability: 5, affectedUsers: 5, discoverability: 5 },
@@ -9,103 +10,172 @@ const BASE_SCORES: Record<StrideCategory, Required<DreadScore>> = {
   E: { damage: 9, reproducibility: 4, exploitability: 4, affectedUsers: 7, discoverability: 3 },
 }
 
+const CATEGORY_NAMES: Record<StrideCategory, string> = {
+  S: 'Spoofing',
+  T: 'Tampering',
+  R: 'Repudiation',
+  I: 'Information Disclosure',
+  D: 'Denial of Service',
+  E: 'Elevation of Privilege',
+}
+
 function clamp(n: number): number {
   return Math.max(1, Math.min(10, n))
 }
 
 const DREAD_KEYS: (keyof DreadScore)[] = ['damage', 'reproducibility', 'exploitability', 'affectedUsers', 'discoverability']
 
+/** One named reason a DREAD field's suggested value is what it is — the
+ *  base score for the STRIDE category, plus zero or more adjustments, each
+ *  carrying the same "why" a human reviewer would want ("no authentication
+ *  declared", "crosses a trust boundary", etc). `explainDreadScore` returns
+ *  the full list; `suggestDreadScore` sums it per key — same numbers as
+ *  before this was split out, just derived from one shared source instead
+ *  of two separate implementations that could drift. */
+export interface DreadContribution {
+  key: keyof DreadScore
+  label: string
+  amount: number
+}
+
+function baseContributions(category: StrideCategory): DreadContribution[] {
+  const base = BASE_SCORES[category]
+  return DREAD_KEYS.map((key) => ({ key, label: `Base score for ${CATEGORY_NAMES[category]} threats`, amount: base[key] }))
+}
+
+function contextContributions(threat: Threat): DreadContribution[] {
+  const contributions: DreadContribution[] = []
+  if (threat.ruleId.includes('boundary')) {
+    contributions.push({ key: 'exploitability', label: 'Crosses a trust boundary', amount: 2 })
+    contributions.push({ key: 'discoverability', label: 'Crosses a trust boundary', amount: 1 })
+  }
+  if (threat.description.includes('high priority')) {
+    contributions.push({ key: 'damage', label: 'Flagged high priority (sensitive data, unconfirmed encryption)', amount: 2 })
+    contributions.push({ key: 'affectedUsers', label: 'Flagged high priority (sensitive data, unconfirmed encryption)', amount: 2 })
+  }
+  return contributions
+}
+
 /** Adjustments derived from the target node/edge's MS-TMT security attributes —
  *  these are the same signals ruleEngine.ts folds into threat descriptions,
  *  reused here so a process with no authentication or a data flow with no
  *  confidentiality protection also scores higher, not just reads scarier. */
-function attributeAdjustments(threat: Threat, attrs: Record<string, AttributeValue> | undefined): Partial<Record<keyof DreadScore, number>> {
-  if (!attrs) return {}
-  const delta: Partial<Record<keyof DreadScore, number>> = {}
-  const bump = (key: keyof DreadScore, amount: number) => {
-    delta[key] = (delta[key] ?? 0) + amount
-  }
+function attributeContributions(threat: Threat, attrs: Record<string, AttributeValue> | undefined): DreadContribution[] {
+  if (!attrs) return []
+  const contributions: DreadContribution[] = []
+  const add = (key: keyof DreadScore, label: string, amount: number) => contributions.push({ key, label, amount })
 
   // Process
   if (attrs.implementsAuthentication === false && (threat.category === 'S' || threat.category === 'E')) {
-    bump('exploitability', 2)
+    add('exploitability', 'No authentication mechanism declared', 2)
   }
   if (attrs.implementsAuthorization === false && threat.category === 'E') {
-    bump('damage', 2)
+    add('damage', 'No authorization mechanism declared', 2)
   }
   if (attrs.sanitizesInput === false && threat.category === 'T') {
-    bump('exploitability', 2)
+    add('exploitability', 'Input is not sanitized', 2)
   }
   if (attrs.sanitizesOutput === false && threat.category === 'I') {
-    bump('exploitability', 1)
+    add('exploitability', 'Output is not sanitized', 1)
   }
   if (['Kernel', 'System', 'Administrator'].includes(attrs.runningAs as string) && threat.category === 'E') {
-    bump('damage', 2)
+    add('damage', `Runs as ${attrs.runningAs} (elevated privileges)`, 2)
   }
 
   // Data store
   if (attrs.storesCredentials === true && attrs.encryptedAtRest !== true && threat.category === 'I') {
-    bump('damage', 3)
-    bump('affectedUsers', 2)
+    add('damage', 'Stores credentials without confirmed encryption', 3)
+    add('affectedUsers', 'Stores credentials without confirmed encryption', 2)
   }
   if (attrs.signed === false && threat.category === 'T') {
-    bump('damage', 1)
+    add('damage', 'Data is not signed', 1)
   }
 
   // External interactor
   if (attrs.authenticated === false && threat.category === 'S') {
-    bump('exploitability', 2)
+    add('exploitability', 'Interactor does not authenticate itself', 2)
   }
 
   // Data flow
   if ((attrs.sourceAuthenticated === false || attrs.destinationAuthenticated === false) && threat.category === 'T') {
-    bump('exploitability', 2)
+    add('exploitability', 'Communicating parties not mutually authenticated', 2)
   }
   if (attrs.providesConfidentiality === false && threat.category === 'I') {
-    bump('damage', 2)
+    add('damage', 'Flow does not provide confidentiality', 2)
   }
   if (attrs.providesIntegrity === false && threat.category === 'T') {
-    bump('damage', 2)
+    add('damage', 'Flow does not provide integrity', 2)
   }
   if (['Wifi', 'Bluetooth', '2G-4G'].includes(attrs.physicalNetwork as string)) {
-    bump('discoverability', 1)
+    add('discoverability', `Transmitted over ${attrs.physicalNetwork} (wireless)`, 1)
   }
 
-  return delta
+  return contributions
 }
 
-/** Rough starting point for DREAD scoring, derived from the threat's STRIDE
- *  category plus context the rule engine already flagged (trust-boundary
- *  crossing, unencrypted sensitive data, and now the target's MS-TMT security
- *  attributes). Meant to save the user from staring at 5 blank fields, not to
- *  be authoritative — every threat scored this way is flagged
- *  `dreadNeedsReview` until a human confirms or edits it. */
-export function suggestDreadScore(threat: Threat, diagram: Diagram): DreadScore {
-  const score: DreadScore = { ...BASE_SCORES[threat.category] }
+/** Compliance-tagged elements (Release 5) get a modest bump on the
+ *  categories where regulatory scope actually matters — confidentiality
+ *  (Information Disclosure) and integrity (Tampering). Breach impact for
+ *  regulated data tends to be broad (legal/financial/reputational), hence
+ *  damage over exploitability/discoverability. */
+function complianceContributions(threat: Threat, diagram: Diagram): DreadContribution[] {
+  // Information Disclosure and Tampering are the obvious fits (confidentiality/
+  // integrity of regulated data). Repudiation is included too — SOX and CMMC in
+  // particular are fundamentally about audit-trail/accountability, so a
+  // compliance-tagged asset with weak non-repudiation controls carries real
+  // regulatory risk. Spoofing/DoS/Elevation-of-Privilege are deliberately left
+  // out — there's no clean, statable reason compliance scope specifically
+  // worsens those, and an unexplainable blanket bump is worse than no bump.
+  if (threat.category !== 'I' && threat.category !== 'T' && threat.category !== 'R') return []
+  const complianceByNode = computeEffectiveComplianceTags(diagram)
+  const tags: Set<ComplianceTag> | undefined =
+    threat.targetType === 'node'
+      ? complianceByNode.get(threat.targetId)
+      : (() => {
+          const edge = diagram.edges.find((e) => e.id === threat.targetId)
+          if (!edge) return undefined
+          return new Set([...(complianceByNode.get(edge.source) ?? []), ...(complianceByNode.get(edge.target) ?? [])])
+        })()
+  if (!tags || tags.size === 0) return []
+  const label = `Compliance scope: ${[...tags].sort().join(', ')}`
+  return [
+    { key: 'damage', label, amount: 2 },
+    { key: 'affectedUsers', label, amount: 1 },
+  ]
+}
 
-  const crossesBoundary = threat.ruleId.includes('boundary')
-  const highPriority = threat.description.includes('high priority')
-
-  if (crossesBoundary) {
-    score.exploitability = clamp(score.exploitability! + 2)
-    score.discoverability = clamp(score.discoverability! + 1)
-  }
-  if (highPriority) {
-    score.damage = clamp(score.damage! + 2)
-    score.affectedUsers = clamp(score.affectedUsers! + 2)
-  }
-
+/** Full breakdown of why a threat's suggested DREAD score is what it is —
+ *  base score plus every contributing adjustment, each labeled. Powers the
+ *  per-field "why this number" hover in ThreatsPanel; `suggestDreadScore`
+ *  is just this, summed per key. */
+export function explainDreadScore(threat: Threat, diagram: Diagram): DreadContribution[] {
   const target =
     threat.targetType === 'node'
       ? diagram.nodes.find((n) => n.id === threat.targetId)
       : diagram.edges.find((e) => e.id === threat.targetId)
   const attrs = target?.data?.attributes as Record<string, AttributeValue> | undefined
-  const delta = attributeAdjustments(threat, attrs)
-  for (const key of DREAD_KEYS) {
-    const amount = delta[key]
-    if (amount) score[key] = clamp((score[key] ?? 5) + amount)
-  }
 
+  return [
+    ...baseContributions(threat.category),
+    ...contextContributions(threat),
+    ...attributeContributions(threat, attrs),
+    ...complianceContributions(threat, diagram),
+  ]
+}
+
+/** Rough starting point for DREAD scoring, derived from the threat's STRIDE
+ *  category plus context the rule engine already flagged (trust-boundary
+ *  crossing, unencrypted sensitive data, compliance scope, and the target's
+ *  MS-TMT security attributes). Meant to save the user from staring at 5
+ *  blank fields, not to be authoritative — every threat scored this way is
+ *  flagged `dreadNeedsReview` until a human confirms or edits it. */
+export function suggestDreadScore(threat: Threat, diagram: Diagram): DreadScore {
+  const contributions = explainDreadScore(threat, diagram)
+  const score = {} as DreadScore
+  for (const key of DREAD_KEYS) {
+    const total = contributions.filter((c) => c.key === key).reduce((sum, c) => sum + c.amount, 0)
+    score[key] = clamp(total)
+  }
   return score
 }
 

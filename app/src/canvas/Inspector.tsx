@@ -3,16 +3,19 @@ import { stencilsForType, findStencil } from './stencils'
 import { Combobox, type ComboboxOption } from './Combobox'
 import { ColorSwatchPicker } from './ColorSwatchPicker'
 import { dataFlowSecurityFields, securityFieldsFor, DATA_FLOW_PROTOCOL_DEFAULTS, type AttributeFieldDef } from './mstmAttributes'
+import { CHECKBOX_COMPLIANCE_TAGS, COMPLIANCE_TAG_LABELS } from './complianceTags'
 import type {
   ArrowStyle,
   AttributeValue,
   BoundaryType,
+  ComplianceTag,
   CustomFieldDef,
   CustomStencil,
   DiagramEdge,
   DiagramNode,
   LineStyle,
   NodeColors,
+  PciScope,
 } from '../types/project'
 import './Inspector.css'
 
@@ -307,6 +310,91 @@ function SecurityPropertiesSection({
   )
 }
 
+/** Data classification / regulatory-scope tagging (Release 5) — separate
+ *  from Security Properties since it's a different kind of concern
+ *  (compliance scope, not architecture/protocol facts) and only applies to
+ *  Data Store nodes and Data Flow edges, not every element type. PCI gets
+ *  its own conditional sub-field (`pciScope`) instead of a plain checkbox
+ *  since "in scope" alone isn't enough detail to be useful — see
+ *  `PciScope` in types/project.ts for why it's Connected/CDE rather than
+ *  the org-wide merchant-level concept. Tags set here are the *direct*
+ *  assignment only; `complianceTags.ts`'s `computeEffectiveComplianceTags`
+ *  propagates them to connected elements for the canvas overlay. */
+function ComplianceSection({
+  tags,
+  pciScope,
+  notes,
+  onChange,
+}: {
+  tags: ComplianceTag[]
+  pciScope?: PciScope
+  notes?: string
+  onChange: (tags: ComplianceTag[], pciScope?: PciScope, notes?: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const hasPci = tags.includes('PCI')
+  const hasAnyTag = tags.length > 0
+
+  function toggleTag(tag: ComplianceTag) {
+    onChange(tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag], pciScope, notes)
+  }
+
+  function togglePci(checked: boolean) {
+    onChange(
+      checked ? [...tags, 'PCI'] : tags.filter((t) => t !== 'PCI'),
+      checked ? (pciScope ?? 'Connected') : undefined,
+      notes
+    )
+  }
+
+  return (
+    <div className="inspector__security-fields">
+      <button
+        type="button"
+        className="inspector__advanced-toggle"
+        onClick={() => setOpen((o) => !o)}
+        title="Regulatory/data-classification scope — propagates to connected elements within the same trust boundary and feeds the Compliance overlay + STRIDE/DREAD."
+      >
+        {open ? '▾' : '▸'} Compliance & data classification
+      </button>
+      {open && (
+        <div className="inspector__security-fields-body">
+          {CHECKBOX_COMPLIANCE_TAGS.map((tag) => (
+            <label className="inspector__field" key={tag} title={COMPLIANCE_TAG_LABELS[tag]}>
+              <span>{tag}</span>
+              <input type="checkbox" checked={tags.includes(tag)} onChange={() => toggleTag(tag)} />
+            </label>
+          ))}
+          <label className="inspector__field" title={COMPLIANCE_TAG_LABELS.PCI}>
+            <span>PCI</span>
+            <input type="checkbox" checked={hasPci} onChange={(e) => togglePci(e.target.checked)} />
+          </label>
+          {hasPci && (
+            <label className="inspector__field">
+              <span>PCI scope</span>
+              <select value={pciScope ?? 'Connected'} onChange={(e) => onChange(tags, e.target.value as PciScope, notes)}>
+                <option value="Connected">Connected to CDE</option>
+                <option value="CDE">Cardholder Data Environment (CDE)</option>
+              </select>
+            </label>
+          )}
+          {hasAnyTag && (
+            <label className="inspector__field">
+              <span>Notes</span>
+              <textarea
+                rows={2}
+                value={notes ?? ''}
+                onChange={(e) => onChange(tags, pciScope, e.target.value)}
+                placeholder="e.g. Tier 2 PCI asset, processes card data — additional review required"
+              />
+            </label>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function SaveAsCustomElement({
   defaultName,
   onSave,
@@ -420,6 +508,10 @@ function NodeInspector({
     })
   }
 
+  function setCompliance(tags: ComplianceTag[], pciScope?: PciScope, complianceNotes?: string) {
+    onUpdate(node.id, { complianceTags: tags, pciScope, complianceNotes })
+  }
+
   function saveCustomElement(name: string) {
     const attrs = node.data.attributes ?? {}
     const defaults = Object.fromEntries(Object.entries(attrs).filter(([, v]) => v !== '' && v !== undefined))
@@ -502,6 +594,15 @@ function NodeInspector({
         onAddCustomField={addCustomField}
         onRemoveCustomField={removeCustomField}
       />
+
+      {node.data.elementType === 'data-store' && (
+        <ComplianceSection
+          tags={node.data.complianceTags ?? []}
+          pciScope={node.data.pciScope}
+          notes={node.data.complianceNotes}
+          onChange={setCompliance}
+        />
+      )}
     </div>
   )
 }
@@ -548,6 +649,10 @@ function EdgeInspector({
       customFields: (edge.data?.customFields ?? []).filter((f) => f.key !== key),
       attributes: restAttrs,
     })
+  }
+
+  function setCompliance(tags: ComplianceTag[], pciScope?: PciScope, complianceNotes?: string) {
+    onUpdate(edge.id, { complianceTags: tags, pciScope, complianceNotes })
   }
 
   return (
@@ -617,6 +722,13 @@ function EdgeInspector({
         onRestoreField={restoreField}
         onAddCustomField={addCustomField}
         onRemoveCustomField={removeCustomField}
+      />
+
+      <ComplianceSection
+        tags={edge.data?.complianceTags ?? []}
+        pciScope={edge.data?.pciScope}
+        notes={edge.data?.complianceNotes}
+        onChange={setCompliance}
       />
     </div>
   )

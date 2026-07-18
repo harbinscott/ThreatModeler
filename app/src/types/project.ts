@@ -70,6 +70,15 @@ export type BoundaryType =
   | 'Kernel/User Mode Boundary'
   | 'Cloud Account/Tenant Boundary'
 
+export type ComplianceTag = 'PII' | 'PHI' | 'PCI' | 'GDPR' | 'SOX' | 'SOC2' | 'CMMC'
+
+/** PCI-specific sub-classification, only meaningful when `complianceTags`
+ *  includes 'PCI' — mirrors how PCI DSS segmentation is actually reasoned
+ *  about (cardholder data environment vs. systems merely connected to it),
+ *  not the org-wide "merchant level" concept, which isn't a per-asset
+ *  property. */
+export type PciScope = 'Connected' | 'CDE'
+
 export interface DiagramNodeData extends Record<string, unknown> {
   label: string
   elementType: ElementType
@@ -90,6 +99,19 @@ export interface DiagramNodeData extends Record<string, unknown> {
   customFields?: CustomFieldDef[]
   /** Built-in shared-field keys hidden for this instance only. */
   hiddenFieldKeys?: string[]
+  /** Directly (manually) assigned regulatory/data-classification tags —
+   *  the seed for propagation, see `complianceTags.ts`. Data Store nodes
+   *  and Data Flow edges only; other element types only ever see the
+   *  *propagated* result via `ThreatOverlayContext`, not this field. */
+  complianceTags?: ComplianceTag[]
+  /** Only rendered/meaningful when `complianceTags` includes 'PCI'. */
+  pciScope?: PciScope
+  /** Freeform context for the directly-assigned tags on *this* element
+   *  (e.g. "Tier 2 PCI asset, processes card data — additional review
+   *  required"). Not propagated — an element that only inherited tags from
+   *  a connected one doesn't inherit this note too, since it's specific to
+   *  the element that owns it. */
+  complianceNotes?: string
 }
 
 export type LineStyle = 'solid' | 'dashed' | 'dotted'
@@ -103,6 +125,9 @@ export interface DiagramEdgeData extends Record<string, unknown> {
   attributes?: Record<string, AttributeValue>
   customFields?: CustomFieldDef[]
   hiddenFieldKeys?: string[]
+  complianceTags?: ComplianceTag[]
+  pciScope?: PciScope
+  complianceNotes?: string
 }
 
 export type DiagramNode = Node<DiagramNodeData>

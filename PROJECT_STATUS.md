@@ -8,31 +8,46 @@ obvious from the code alone.
 
 ## Resume here (updated end of this session)
 
-1. **Release 4 — Trust-Boundary Awareness & Flow/List UX — done and fully
-   verified.** Geometric boundary containment, duplicate-name
-   disambiguation, zone-qualified flow paths in the Table tab, a zone-aware
-   Source/Target picker when creating a flow, and (added mid-release from
-   user feedback, beyond original scope) the ability to edit an existing
-   flow's source/target endpoints via the same zoned picker. See "Trust
-   boundary awareness & zone-qualified flows (Release 4)" under "What's
-   built" below for the full writeup.
-2. **Next up: Release 5 — Smart Data Classification & Compliance Tagging.**
-   Data type/sensitivity picker (PII, PHI/HIPAA, PCI, etc.) on Data Store
-   and Data Flow elements, propagated along the connection graph so
-   anything a tagged element touches inherits the relevant compliance tag
-   (e.g. PCI tier). Builds on Release 4's containment/graph-traversal
-   groundwork and Release 3's custom-property plumbing. Sequence and scope
-   already agreed with the user as part of the Release 3-6 re-grouping —
-   see "Release roadmap" below. Nothing scoped yet beyond that summary —
-   confirm the exact tag taxonomy and propagation rules with the user before
-   building, same as every other big feature this project.
-3. **Roadmap was re-sequenced earlier this session** after the user tested
-   the app and brought back 7 new backlog items plus a Microsoft Threat
-   Modeling Tool element/property export (`microsoft_tmt_elements.json`) as
-   a reference dataset. The 7 items were grouped into four new releases
-   (3 through 6), pushing the previously-planned CAPEC/CWE/scalability/SDLC
-   work down to Releases 7-10. See "Release roadmap" below for the full
-   current sequencing and the reasoning behind each grouping.
+1. **Release 5 — Smart Data Classification & Compliance Tagging — done and
+   fully verified**, including three follow-up refinement rounds from live
+   testing. See "Compliance tagging (Release 5)" under "What's built" below
+   for the full writeup. Highlights:
+   - Tags: PII, PHI, PCI, GDPR, SOX, SOC2, CMMC on Data Store nodes and Data
+     Flow edges, with PCI getting its own Connected/CDE sub-scope (not a
+     generic numeric tier — deliberately, see the writeup for why).
+   - Propagation: same-zone flood-fill, stops at a trust-boundary crossing.
+     PCI's CDE/Connected distinction propagates correctly too (only the
+     directly-tagged element is CDE; everything it reaches becomes
+     Connected, never upgraded back to CDE by proximity) — this was a real
+     gap caught by the user and fixed mid-release.
+   - Surfacing: canvas overlay badges, Table view already covered by
+     Release 4's Zone chip pattern, Threats tab list dots + detail chips
+     (added after the user noticed tags weren't visible there — the canvas
+     overlay toggle only ever gated the diagram badge, not other views).
+   - Feeds STRIDE descriptions (with a per-element freeform compliance note
+     field, e.g. "Tier 2 PCI asset — additional review required") and DREAD
+     scoring (Information Disclosure, Tampering, *and* Repudiation — the
+     last one added after the user caught a real gap: SOX/CMMC are
+     fundamentally about audit-trail accountability, so a compliance-tagged
+     asset scoring "default" on Repudiation was a real miss).
+   - DREAD score suggestions are now fully explainable: hover "Why these
+     scores?" next to the DREAD header shows every field's base score plus
+     every named adjustment that applied, in one consolidated card.
+   - Explicitly **not** built, after the user asked for a sanity check:
+     auto-finalizing DREAD scores without human review, a generic
+     compliance-wide numeric tier system, and inferring score adjustments
+     from the freeform note text — see the writeup for the reasoning on
+     each (audit-defensibility concerns, mostly).
+2. **Next up: Release 6 — Mitigation Elements (Firewall/WAF).** See
+   "Release roadmap" below — biggest lift of the four remaining releases in
+   this batch. The DREAD explainability breakdown built this session
+   already supports negative contributions (e.g. "-2 exploitability: WAF
+   present"), so a mitigation's score effect should slot into the existing
+   `DreadContribution` architecture once the element type exists — worth
+   keeping in mind when scoping Release 6's DREAD-integration piece.
+3. Also landed this session, small and unrelated to compliance: reordered
+   the Canvas tabs to Diagram → Table → Threats → PASTA (grouping the two
+   diagram-editing views together, per user request).
 4. Two more items came in from Release 3 testing and were folded into the
    roadmap rather than built immediately: an unsaved-changes guard (warn
    before navigating away from an edited-but-unsaved diagram) — Backlog
@@ -129,8 +144,11 @@ Project { id, name, description, frameworks{stride,dread,pasta}, diagram{nodes,e
   notes?, customStencils?[], createdAt, updatedAt }
 DiagramNodeData { label, elementType, description?, componentType?, attributes?,
   colors?{fill,border,text}, boundaryShape?('rectangle'|'circle'|'cloud', trust-boundary only),
-  boundaryType?(trust-boundary only), customFields?[], hiddenFieldKeys?[] }
-DiagramEdgeData { label?, lineStyle?, arrowStyle?, color?, attributes?, customFields?[], hiddenFieldKeys?[] }
+  boundaryType?(trust-boundary only), customFields?[], hiddenFieldKeys?[],
+  complianceTags?[]('PII'|'PHI'|'PCI'|'GDPR'|'SOX'|'SOC2'|'CMMC'), pciScope?('Connected'|'CDE'),
+  complianceNotes? }
+DiagramEdgeData { label?, lineStyle?, arrowStyle?, color?, attributes?, customFields?[], hiddenFieldKeys?[],
+  complianceTags?[], pciScope?, complianceNotes? }
 CustomStencil { id, name, elementType, defaults?, customFields?[], hiddenFieldKeys?[] } — see stencils.ts
 CustomFieldDef { key, label, type('text'|'boolean'|'select'), options? }
 Threat { id, ruleId, targetType, targetId, targetLabel, componentType?, category(S/T/R/I/D/E),
@@ -372,6 +390,97 @@ color/line-style/arrow-direction/custom-label untouched. The add-flow and
 edit-flow forms share one set of form state in `ElementsTable.tsx`
 (`editingEdgeId` flag distinguishes which `onAddFlow`/`onEditFlow` callback
 fires on submit) rather than being two separate components.
+
+**Compliance tagging (Release 5)** — `src/canvas/complianceTags.ts` is the
+new module. `ComplianceTag` = PII/PHI/PCI/GDPR/SOX/SOC2/CMMC
+(`types/project.ts`), assignable via a new "Compliance & data
+classification" Inspector section (`Inspector.tsx`) on Data Store nodes and
+Data Flow edges only (not every element type — matches where the user's
+original ask was scoped). PCI gets its own `PciScope` sub-field
+(`'Connected' | 'CDE'`) instead of a plain checkbox — deliberately *not* a
+generic numeric "Tier 1-4" system, and deliberately not extended to the
+other six tags either: PCI's Connected/CDE mirrors real cardholder-data-
+environment segmentation practice, but CMMC already uses "Level 1-3" for a
+completely different concept (org maturity, not asset scope), and none of
+the other frameworks have an equivalent asset-tiering convention — a
+lookalike generic tier risked someone citing it as if it were the
+framework's real scoping language. This was an explicit user sanity-check
+("would this cause issues in an actual audit") that the answer was no for
+PCI specifically and yes for a generic version, so only PCI got the
+sub-field.
+
+Propagation: `computeEffectiveComplianceTags(diagram)` is a same-zone
+flood-fill over `Diagram['edges']` — a tag spreads from a directly-tagged
+element to everything reachable via a flow *within the same trust
+boundary*, using the same `innermostBoundary()` zone-equality check Release
+4 built; crossing a boundary stops it. `computeEffectivePciScope(diagram)`
+is a second, separate flood-fill specifically for the Connected/CDE
+distinction: only a directly-marked element stays `CDE`, everything it
+reaches becomes `Connected`, and a `Connected` is never upgraded back to
+`CDE` by proximity — this two-tier propagation was missing in the first
+pass (everything downstream just read as generic "PCI" with no scope
+distinction) and was a real gap the user caught, not a style preference.
+Both functions share a `makeZoneResolver()` helper to avoid the zone logic
+drifting between them.
+
+Surfacing: a new "Compliance tags" checkbox in the Overlay menu
+(`OverlayMenu.tsx`) gates a canvas badge (`ComplianceBadge.tsx` — small
+colored chips, bottom-left corner of the node, opposite `ThreatBadge`'s
+top-right so the two never collide; PCI's chip tooltip includes
+Connected/CDE). `ThreatOverlayContext` carries `complianceTagsByTarget` and
+`pciScopeByTarget` alongside the existing threat/risk-color maps. **Added
+after initial testing**: the Threats tab wasn't showing tags at all — the
+overlay toggle only ever gated the *canvas* badge, so `complianceTagsByTarget`
+is now always computed in `Canvas.tsx` regardless of that toggle, and a
+separate always-on copy is threaded into `ThreatsPanel.tsx` (small colored
+dots per list row, full chips with tag names in the detail panel) — the
+toggle still only controls whether the diagram itself shows the badge.
+
+Feeds `ruleEngine.ts`: compliance-tagged Data Store/Data Flow threats get a
+sentence naming the applicable regulations (PCI shows its Connected/CDE
+sub-scope inline), and a new per-element freeform `complianceNotes` field
+(Inspector textarea, only shown once a tag is set) gets appended verbatim —
+e.g. "Tier 2 PCI asset, processes card data — additional review required."
+Notes are *not* propagated — they're specific to the element the user
+actually wrote them on, not copied onto everything downstream. Feeds
+`dreadEngine.ts`: a flat damage/affected-users bump on Information
+Disclosure, Tampering, **and Repudiation** — Repudiation was added after
+the user caught a real gap live-testing (a heavily-tagged asset was scoring
+"default" on Repudiation): SOX and CMMC are fundamentally about
+audit-trail/accountability, so that category needed the same treatment.
+Spoofing/DoS/Elevation-of-Privilege deliberately do **not** get a
+compliance bump — no clean, statable rationale connects compliance scope to
+those specifically, and an unexplainable blanket bump across every category
+would be worse than a narrower, justified one (this was another explicit
+user sanity-check point).
+
+DREAD explainability: `dreadEngine.ts` was refactored so
+`attributeAdjustments`'s old "just sum the deltas" approach became
+`DreadContribution[]` — labeled `{key, label, amount}` entries (base score,
+trust-boundary-crossing, high-priority flag, each MS-TMT attribute
+condition, compliance scope), with `explainDreadScore(threat, diagram)`
+returning the full list and `suggestDreadScore` just summing it per key
+(verified numerically equivalent to the old sequential-clamp approach,
+since every delta in this codebase is a positive addition — clamping once
+at the end vs. clamping after each step produces the same result). Powers a
+single "Why these scores?" hover button next to the DREAD header in
+`ThreatsPanel.tsx` (`DreadScoreExplain`) showing all 5 fields' breakdowns
+grouped in one card — **user explicitly preferred this over the first pass**,
+which had 5 separate per-field ⓘ icons; consolidated into one after
+feedback. The contribution-list shape already supports negative amounts
+(nothing currently produces one), so a future mitigation element (Release
+6) lowering a score — e.g. "-2 exploitability: WAF present" — should slot
+into this same architecture without another refactor.
+
+**Explicitly not built, after an explicit user sanity-check request**:
+auto-finalizing DREAD scores without a human touching them (`dreadNeedsReview`
+stays the gate — DREAD is a judgment exercise, and a real audit reviewer
+seeing every score was silently algorithm-generated undermines the point of
+doing risk assessment at all); a generic compliance-wide numeric tier system
+across all 7 tags (see PCI reasoning above); and inferring DREAD adjustments
+from the freeform compliance-note text (unreliable text-parsing dressed up
+as scoring logic — the note is descriptive context for a human reader, not
+a machine-readable signal).
 
 **DREAD risk-level overlay coloring** — second overlay layer (see "Threat
 overlay on canvas" below for the first). `OverlayLayers` gained
@@ -632,14 +741,12 @@ already built:
   picked up an unplanned addition from live testing: the zone-aware
   create-flow picker turned out to need an edit counterpart too (rewiring
   an existing connection's source/target).
-- **Release 5 — Smart Data Classification & Compliance Tagging** *(user item
-  5)*: absorbs what was originally scoped as "Release 3" before this
-  re-sequencing (data classification/type tags on data flows). Data
-  type/sensitivity picker (PII, PHI/HIPAA, PCI, etc.) on Data Store and Data
-  Flow elements, propagated along the connection graph so anything a tagged
-  element touches inherits the relevant compliance tag (e.g. PCI tier).
-  Needs Release 4's graph-traversal groundwork and Release 3's custom
-  property plumbing.
+- **Release 5 — Smart Data Classification & Compliance Tagging** ✅ done and
+  verified this session, across the initial build plus three follow-up
+  refinement rounds from live testing. *(user item 5)*: absorbs what was
+  originally scoped as "Release 3" before this re-sequencing (data
+  classification/type tags on data flows). See "Compliance tagging (Release
+  5)" under "What's built" for the full writeup.
 - **Release 6 — Mitigation Elements (Firewall/WAF)** *(user items 6 + 7)*:
   biggest lift of the seven. A new node type droppable directly onto an
   edge, auto-splitting existing connections (including fan-in from multiple

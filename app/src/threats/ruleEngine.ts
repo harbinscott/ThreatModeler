@@ -1,5 +1,6 @@
-import type { Diagram, StrideCategory, Threat } from '../types/project'
+import type { ComplianceTag, Diagram, PciScope, StrideCategory, Threat } from '../types/project'
 import { containingBoundaries as containingBoundaryNodes } from '../canvas/boundaryGeometry'
+import { computeEffectiveComplianceTags, computeEffectivePciScope } from '../canvas/complianceTags'
 
 const CATEGORY_NAMES: Record<StrideCategory, string> = {
   S: 'Spoofing',
@@ -81,6 +82,19 @@ function dataStoreDescription(cat: StrideCategory, label: string): string {
   }
 }
 
+function complianceTagList(tags: Set<ComplianceTag>, pciScope: PciScope | undefined): string {
+  return [...tags]
+    .sort()
+    .map((t) => (t === 'PCI' && pciScope ? `PCI (${pciScope === 'CDE' ? 'Cardholder Data Environment' : 'Connected to CDE'})` : t))
+    .join(', ')
+}
+
+function complianceNote(tags: Set<ComplianceTag> | undefined, pciScope: PciScope | undefined, note?: string): string {
+  if (!tags || tags.size === 0) return ''
+  const base = ` This element is in scope for ${complianceTagList(tags, pciScope)} — verify controls meet the applicable regulatory requirements.`
+  return note ? `${base} ${note}` : base
+}
+
 function flowDescription(cat: StrideCategory, label: string): string {
   switch (cat) {
     case 'T':
@@ -97,9 +111,13 @@ function flowDescription(cat: StrideCategory, label: string): string {
 export function generateThreats(diagram: Diagram): Threat[] {
   const threats: Threat[] = []
   const boundaries = diagram.nodes.filter((n) => n.data.elementType === 'trust-boundary')
+  const complianceByNode = computeEffectiveComplianceTags(diagram)
+  const pciScopeByNode = computeEffectivePciScope(diagram)
 
   for (const node of diagram.nodes) {
     const label = node.data.label
+    const tags = complianceByNode.get(node.id)
+    const pciScope = pciScopeByNode.get(node.id)
 
     if (node.data.elementType === 'process') {
       const attrs = node.data.attributes ?? {}
@@ -121,6 +139,7 @@ export function generateThreats(diagram: Diagram): Threat[] {
         if (cat === 'I' && attrs.sanitizesOutput === false) {
           desc += ' Output is not sanitized, increasing the chance of leaking sensitive data.'
         }
+        if (cat === 'I') desc += complianceNote(tags, pciScope)
         threats.push(
           makeThreat(`process-${cat}`, 'node', node.id, label, cat, `${CATEGORY_NAMES[cat]} of ${label}`, desc, node.data.componentType)
         )
@@ -138,14 +157,25 @@ export function generateThreats(diagram: Diagram): Threat[] {
       })
     } else if (node.data.elementType === 'data-store') {
       const attrs = node.data.attributes ?? {}
+      const hasComplianceTags = Boolean(tags && tags.size > 0)
       const sensitive =
-        attrs.dataClassification === 'Confidential' || attrs.dataClassification === 'Restricted' || attrs.storesCredentials === true
+        attrs.dataClassification === 'Confidential' ||
+        attrs.dataClassification === 'Restricted' ||
+        attrs.storesCredentials === true ||
+        hasComplianceTags
       const encryptedAtRest = attrs.encryptedAtRest === true
       ;(['T', 'I', 'D'] as StrideCategory[]).forEach((cat) => {
         let desc = dataStoreDescription(cat, label)
         if (cat === 'I' && sensitive && !encryptedAtRest) {
-          const reason = attrs.storesCredentials ? 'stores credentials' : `is classified as ${attrs.dataClassification}`
+          const reason = attrs.storesCredentials
+            ? 'stores credentials'
+            : hasComplianceTags
+              ? `is in scope for ${complianceTagList(tags!, pciScope)}`
+              : `is classified as ${attrs.dataClassification}`
           desc += ` This store ${reason} and does not have "Encrypted" confirmed — treat as high priority.`
+          if (hasComplianceTags && node.data.complianceNotes) desc += ` ${node.data.complianceNotes}`
+        } else if (cat === 'I' && hasComplianceTags) {
+          desc += complianceNote(tags, pciScope, node.data.complianceNotes)
         }
         if (cat === 'T' && attrs.signed === false) {
           desc += ' Data is not signed — unauthorized modification may go undetected.'
@@ -174,6 +204,11 @@ export function generateThreats(diagram: Diagram): Threat[] {
 
     const edgeAttrs = edge.data?.attributes ?? {}
     const wireless = ['Wifi', 'Bluetooth', '2G-4G'].includes(edgeAttrs.physicalNetwork as string)
+    const edgeTags = new Set<ComplianceTag>([...(complianceByNode.get(source.id) ?? []), ...(complianceByNode.get(target.id) ?? [])])
+    const edgePciScope =
+      pciScopeByNode.get(source.id) === 'CDE' || pciScopeByNode.get(target.id) === 'CDE'
+        ? 'CDE'
+        : (pciScopeByNode.get(source.id) ?? pciScopeByNode.get(target.id))
 
     ;(['T', 'I', 'D'] as StrideCategory[]).forEach((cat) => {
       let desc = flowDescription(cat, label)
@@ -193,6 +228,7 @@ export function generateThreats(diagram: Diagram): Threat[] {
       if (wireless) {
         desc += ` Transport is over ${edgeAttrs.physicalNetwork}, which raises interception risk.`
       }
+      if (cat === 'I') desc += complianceNote(edgeTags, edgePciScope, edge.data?.complianceNotes)
       threats.push(
         makeThreat(
           crossesBoundary ? `flow-${cat}-boundary` : `flow-${cat}`,
