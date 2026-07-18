@@ -1,4 +1,5 @@
-import type { Diagram, DiagramNode, StrideCategory, Threat } from '../types/project'
+import type { Diagram, StrideCategory, Threat } from '../types/project'
+import { containingBoundaries as containingBoundaryNodes } from '../canvas/boundaryGeometry'
 
 const CATEGORY_NAMES: Record<StrideCategory, string> = {
   S: 'Spoofing',
@@ -9,34 +10,8 @@ const CATEGORY_NAMES: Record<StrideCategory, string> = {
   E: 'Elevation of Privilege',
 }
 
-interface Rect {
-  x: number
-  y: number
-  width: number
-  height: number
-}
-
-function nodeRect(node: DiagramNode, fallback: { width: number; height: number }): Rect {
-  const styleWidth = typeof node.style?.width === 'number' ? node.style.width : undefined
-  const styleHeight = typeof node.style?.height === 'number' ? node.style.height : undefined
-  return {
-    x: node.position.x,
-    y: node.position.y,
-    width: node.measured?.width ?? styleWidth ?? fallback.width,
-    height: node.measured?.height ?? styleHeight ?? fallback.height,
-  }
-}
-
-function containingBoundaries(node: DiagramNode, boundaries: DiagramNode[]): string[] {
-  const rect = nodeRect(node, { width: 150, height: 50 })
-  const cx = rect.x + rect.width / 2
-  const cy = rect.y + rect.height / 2
-  return boundaries
-    .filter((b) => {
-      const br = nodeRect(b, { width: 320, height: 220 })
-      return cx >= br.x && cx <= br.x + br.width && cy >= br.y && cy <= br.y + br.height
-    })
-    .map((b) => b.id)
+function containingBoundaries(node: Diagram['nodes'][number], boundaries: Diagram['nodes']): string[] {
+  return containingBoundaryNodes(node, boundaries).map((b) => b.id)
 }
 
 function makeThreat(

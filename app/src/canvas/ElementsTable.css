@@ -40,6 +40,29 @@
   color: var(--text-muted);
 }
 
+.elements-table__add-flow--zoned {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.elements-table__add-flow-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.elements-table__add-flow-label {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  width: 34px;
+  flex-shrink: 0;
+}
+
 .elements-table__list {
   flex: 1;
   min-height: 0;
@@ -105,6 +128,16 @@
   flex-shrink: 0;
 }
 
+.elements-table__zone {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  flex-shrink: 0;
+}
+
 .elements-table__component {
   font-size: 0.68rem;
   font-weight: 600;
@@ -113,6 +146,23 @@
   border-radius: 999px;
   padding: 0.1rem 0.5rem;
   flex-shrink: 0;
+}
+
+.elements-table__edit {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.elements-table__edit:hover {
+  color: var(--accent);
+  background: rgba(37, 99, 235, 0.1);
 }
 
 .elements-table__delete {

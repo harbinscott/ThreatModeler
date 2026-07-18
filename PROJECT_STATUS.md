@@ -8,41 +8,42 @@ obvious from the code alone.
 
 ## Resume here (updated end of this session)
 
-1. **Release 3 — Element & Property Foundation — done and fully verified.**
-   Unified the old two-selector system (`componentCatalog.ts` quick presets
-   + `mstmAttributes.ts` MS-TMT advanced fields, shown as two separate
-   dropdowns) into one condensed stencil picker per element type, plus
-   custom-property add/remove and "save as custom element". User tested live
-   across two passes (core functionality, then the table-view consistency
-   fix) and confirmed everything works. See "Element & property system
-   (Release 3)" under "What's built" below for the full writeup.
-2. **Next up: Release 4 — Trust-Boundary Awareness & Flow/List UX.**
-   Geometric containment (which boundary each node currently sits inside),
-   a numeric signifier for duplicate-named elements, and upgrading the Table
-   tab's Flows list to show the zone-qualified path
-   (`Internal Network → Web Server —one-way→ Customer → External
-   User/Client`) instead of a bare `source → target` label. Sequence and
-   scope already agreed with the user as part of the Release 3-6
-   re-grouping — see "Release roadmap" below.
-3. **Roadmap was re-sequenced this session** after the user tested the app
-   and brought back 7 new backlog items plus a Microsoft Threat Modeling
-   Tool element/property export (`microsoft_tmt_elements.json`) as a
-   reference dataset. The 7 items were grouped into four new releases
+1. **Release 4 — Trust-Boundary Awareness & Flow/List UX — done and fully
+   verified.** Geometric boundary containment, duplicate-name
+   disambiguation, zone-qualified flow paths in the Table tab, a zone-aware
+   Source/Target picker when creating a flow, and (added mid-release from
+   user feedback, beyond original scope) the ability to edit an existing
+   flow's source/target endpoints via the same zoned picker. See "Trust
+   boundary awareness & zone-qualified flows (Release 4)" under "What's
+   built" below for the full writeup.
+2. **Next up: Release 5 — Smart Data Classification & Compliance Tagging.**
+   Data type/sensitivity picker (PII, PHI/HIPAA, PCI, etc.) on Data Store
+   and Data Flow elements, propagated along the connection graph so
+   anything a tagged element touches inherits the relevant compliance tag
+   (e.g. PCI tier). Builds on Release 4's containment/graph-traversal
+   groundwork and Release 3's custom-property plumbing. Sequence and scope
+   already agreed with the user as part of the Release 3-6 re-grouping —
+   see "Release roadmap" below. Nothing scoped yet beyond that summary —
+   confirm the exact tag taxonomy and propagation rules with the user before
+   building, same as every other big feature this project.
+3. **Roadmap was re-sequenced earlier this session** after the user tested
+   the app and brought back 7 new backlog items plus a Microsoft Threat
+   Modeling Tool element/property export (`microsoft_tmt_elements.json`) as
+   a reference dataset. The 7 items were grouped into four new releases
    (3 through 6), pushing the previously-planned CAPEC/CWE/scalability/SDLC
    work down to Releases 7-10. See "Release roadmap" below for the full
    current sequencing and the reasoning behind each grouping.
-4. **Two more items came in from Release 3 testing** and were folded into
-   the roadmap rather than built immediately: an unsaved-changes guard
-   (warn before navigating away from an edited-but-unsaved diagram) — added
-   to Backlog below since it's small and a real data-safety gap, worth
-   doing sooner rather than waiting on a full release — and a capped
+4. Two more items came in from Release 3 testing and were folded into the
+   roadmap rather than built immediately: an unsaved-changes guard (warn
+   before navigating away from an edited-but-unsaved diagram) — Backlog
+   item 1 below, small and a real data-safety gap — and a capped
    version-history/rollback feature, which landed in Release 9 (SDLC
    integration) since it already covered related ground
-   ("versioning/diffing between saves").
-5. Two small backlog items remain, both low priority, neither blocking:
-   trust boundary shape editing *after* creation (currently creation-time
-   only), and further parallel-edge endpoint visual polish. See Backlog
-   below.
+   ("versioning/diffing between saves"). Neither has been started.
+5. Two small backlog items remain from earlier sessions, both low priority,
+   neither blocking: trust boundary shape editing *after* creation
+   (currently creation-time only), and further parallel-edge endpoint
+   visual polish. See Backlog below.
 6. Everything is committed and pushed to
    `https://github.com/harbinscott/ThreatModeler` (`main` branch) as of the
    end of this session.
@@ -332,6 +333,46 @@ Sandbox/Kernel/Cloud Tenant boundary), independent of the existing
 `boundaryShape` (visual) field. `componentCatalog.ts` was deleted —
 fully superseded, nothing imports it anymore.
 
+**Trust boundary awareness & zone-qualified flows (Release 4)** —
+`src/canvas/boundaryGeometry.ts` extracts the point-in-rect containment math
+`ruleEngine.ts` already had (`nodeRect`/`containingBoundaries`, private
+before this) into a shared module: `containingBoundaries()` (every boundary
+whose rect contains a node's center, for STRIDE crossing detection) and new
+`innermostBoundary()` (the single smallest/most-specific one, for a "which
+zone is this in" display when boundaries nest). `ruleEngine.ts` now imports
+from there instead of keeping its own copy. `src/canvas/elementLabels.ts`
+adds `disambiguateLabels(nodes)` — a node-id -> display-label map that
+appends " (1)"/" (2)" only when two nodes share an exact label, without ever
+touching the stored `data.label` (two same-named elements in different
+zones are legitimately distinct). `ElementsTable.tsx` wires both in: the
+Elements sub-tab shows an amber "Zone" chip per row (containing boundary's
+name, or "No zone"; hidden entirely when the diagram has no boundaries at
+all), and the Flows sub-tab's row label changed from a bare
+`source → target` (which a custom edge label previously replaced entirely,
+hiding the path) to always showing the structural path —
+`Zone · Source  →  Zone · Target` (arrow glyph reflects one-way/two-way/
+none) — with the custom label, if any, moved to the secondary line
+alongside line-style/arrow-direction instead of overwriting the path.
+Creating a flow gained zone-aware Source/Target pickers: when the diagram
+has boundaries, each side gets a zone select ("All zones"/"No zone"/each
+boundary) that filters the element select below it, plus every element
+option is prefixed with its own zone regardless of filter — needed once a
+diagram has two same-typed elements in different zones (e.g. two
+"Web Server"s), since a flat alphabetical list made them indistinguishable
+even with the "(1)"/"(2)" suffix. Diagrams with zero boundaries keep the
+original single-row Source/Target-only form, no extra clutter. **Added
+mid-release from live testing** (user: "the user should be able to edit
+existing flows too"): each flow row now has a ✎ button that opens the same
+zoned picker pre-filled with the connection's current source/target/zones,
+submit label switches to "Save", and it calls a new
+`changeFlowEndpoints(edgeId, sourceId, targetId)` in `Canvas.tsx` (mirrors
+`reverseEdge`'s pattern, also clears `sourceHandle`/`targetHandle` since
+those referenced the old nodes) — rewires the connection in place, leaving
+color/line-style/arrow-direction/custom-label untouched. The add-flow and
+edit-flow forms share one set of form state in `ElementsTable.tsx`
+(`editingEdgeId` flag distinguishes which `onAddFlow`/`onEditFlow` callback
+fires on submit) rather than being two separate components.
+
 **DREAD risk-level overlay coloring** — second overlay layer (see "Threat
 overlay on canvas" below for the first). `OverlayLayers` gained
 `dreadRiskColoring`; `ThreatOverlayContext` gained `riskColorByTarget` (target
@@ -581,13 +622,16 @@ already built:
   property add/remove (text/boolean/select), and "save as custom element" to
   persist a customized stencil back into the project's catalog. Goes first —
   every release below assumes elements can carry custom properties.
-- **Release 4 — Trust-Boundary Awareness & Flow/List UX** *(user item 3 + 4)*:
-  Geometric containment (which boundary each node currently sits inside,
-  recomputed on move/resize), a numeric signifier for duplicate-named
-  elements, and upgrading the Table tab's Flows list to show the
-  zone-qualified path the user's TMT screenshot showed (`Internal Network →
-  Web Server —one-way→ Customer → External User/Client`) instead of a bare
-  `source → target` label.
+- **Release 4 — Trust-Boundary Awareness & Flow/List UX** ✅ done and
+  verified this session. *(user item 3 + 4)*: Geometric containment (which
+  boundary each node currently sits inside, recomputed on move/resize), a
+  numeric signifier for duplicate-named elements, and upgrading the Table
+  tab's Flows list to show the zone-qualified path the user's TMT
+  screenshot showed (`Internal Network → Web Server —one-way→ Customer →
+  External User/Client`) instead of a bare `source → target` label. Also
+  picked up an unplanned addition from live testing: the zone-aware
+  create-flow picker turned out to need an edit counterpart too (rewiring
+  an existing connection's source/target).
 - **Release 5 — Smart Data Classification & Compliance Tagging** *(user item
   5)*: absorbs what was originally scoped as "Release 3" before this
   re-sequencing (data classification/type tags on data flows). Data

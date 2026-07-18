@@ -440,6 +440,14 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     )
   }
 
+  function changeFlowEndpoints(edgeId: string, sourceId: string, targetId: string) {
+    setEdges((eds) =>
+      eds.map((e) =>
+        e.id === edgeId ? { ...e, source: sourceId, target: targetId, sourceHandle: undefined, targetHandle: undefined } : e
+      )
+    )
+  }
+
   function deleteSelection() {
     if (selectedNodes.length === 0 && selectedEdges.length === 0) return
     const deletedNodeIds = new Set(selectedNodes.map((n) => n.id))
@@ -764,6 +772,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
                   onSelectEdge={selectEdge}
                   onAddElement={addShape}
                   onAddFlow={addFlow}
+                  onEditFlow={changeFlowEndpoints}
                   onDeleteNode={deleteNodeById}
                   onDeleteEdge={deleteEdgeById}
                 />
@@ -796,6 +805,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
             onSelectEdge={selectEdge}
             onAddElement={addShape}
             onAddFlow={addFlow}
+            onEditFlow={changeFlowEndpoints}
             onDeleteNode={deleteNodeById}
             onDeleteEdge={deleteEdgeById}
           />
