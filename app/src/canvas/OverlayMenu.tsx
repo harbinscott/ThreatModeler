@@ -2,18 +2,22 @@ import { useEffect, useRef, useState } from 'react'
 
 export interface OverlayLayers {
   threatBadges: boolean
+  dreadRiskColoring: boolean
 }
 
 interface OverlayMenuProps {
   layers: OverlayLayers
   onToggle: (key: keyof OverlayLayers) => void
+  /** Whether the project has DREAD enabled — the risk-coloring layer is
+   *  meaningless without DREAD scores, so it's hidden rather than shown
+   *  disabled. */
+  dreadAvailable: boolean
 }
 
-/** Toolbar dropdown for diagram overlays — currently just threat-count
- *  badges, but built as a list of independent toggles so future overlays
- *  (e.g. DREAD risk coloring) can be added as another `OverlayLayers` key
- *  and another checkbox here, without restructuring this component. */
-export function OverlayMenu({ layers, onToggle }: OverlayMenuProps) {
+/** Toolbar dropdown for diagram overlays — a list of independent toggles so
+ *  future overlays can be added as another `OverlayLayers` key and another
+ *  checkbox here, without restructuring this component. */
+export function OverlayMenu({ layers, onToggle, dreadAvailable }: OverlayMenuProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -38,6 +42,18 @@ export function OverlayMenu({ layers, onToggle }: OverlayMenuProps) {
               Threat count badges
             </label>
           </li>
+          {dreadAvailable && (
+            <li>
+              <label className="overlay-menu__item">
+                <input
+                  type="checkbox"
+                  checked={layers.dreadRiskColoring}
+                  onChange={() => onToggle('dreadRiskColoring')}
+                />
+                DREAD risk coloring
+              </label>
+            </li>
+          )}
         </ul>
       )}
     </div>

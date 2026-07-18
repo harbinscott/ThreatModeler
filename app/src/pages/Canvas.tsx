@@ -18,7 +18,7 @@ import { Inspector } from '../canvas/Inspector'
 import { DEFAULT_EDGE_DATA, edgeVisualProps } from '../canvas/edgeStyle'
 import { ThreatsPanel } from '../threats/ThreatsPanel'
 import { generateThreats, mergeThreats } from '../threats/ruleEngine'
-import { suggestDreadScore } from '../threats/dreadEngine'
+import { suggestDreadScore, dreadAverage, dreadRiskLevel, DREAD_RISK_COLOR, type DreadRiskLevel } from '../threats/dreadEngine'
 import { ShapeButton } from '../canvas/ShapeButton'
 import { ExportMenu } from '../canvas/ExportMenu'
 import { ElementsTable } from '../canvas/ElementsTable'
@@ -93,7 +93,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
   const [nameDraft, setNameDraft] = useState('')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [focusThreatId, setFocusThreatId] = useState<string | null>(null)
-  const [overlayLayers, setOverlayLayers] = useState<OverlayLayers>({ threatBadges: true })
+  const [overlayLayers, setOverlayLayers] = useState<OverlayLayers>({ threatBadges: true, dreadRiskColoring: false })
   const [ribbonOpen, setRibbonOpen] = useState(true)
   const [showInfoDialog, setShowInfoDialog] = useState(false)
   const [showMessagesDialog, setShowMessagesDialog] = useState(false)
@@ -339,6 +339,23 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     }
     return map
   }, [threats])
+
+  const riskColorByTarget = useMemo(() => {
+    const map = new Map<string, string>()
+    if (!overlayLayers.dreadRiskColoring) return map
+    const RANK: Record<DreadRiskLevel, number> = { Low: 0, Medium: 1, High: 2, Critical: 3 }
+    const levelByTarget = new Map<string, DreadRiskLevel>()
+    for (const t of threats) {
+      if (t.status !== 'open') continue
+      const avg = dreadAverage(t.dread)
+      if (avg === null) continue
+      const level = dreadRiskLevel(avg)
+      const existing = levelByTarget.get(t.targetId)
+      if (!existing || RANK[level] > RANK[existing]) levelByTarget.set(t.targetId, level)
+    }
+    for (const [id, level] of levelByTarget) map.set(id, DREAD_RISK_COLOR[level])
+    return map
+  }, [threats, overlayLayers.dreadRiskColoring])
 
   function viewThreatOnCanvas(id: string) {
     setFocusThreatId(id)
@@ -601,7 +618,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
                 {(Object.keys(SHAPE_LABELS) as ElementType[]).map((type) => (
                   <ShapeButton key={type} elementType={type} label={SHAPE_LABELS[type]} onAdd={addShape} />
                 ))}
-                <OverlayMenu layers={overlayLayers} onToggle={toggleOverlayLayer} />
+                <OverlayMenu layers={overlayLayers} onToggle={toggleOverlayLayer} dreadAvailable={project.frameworks.dread} />
               </div>
             )}
             {view === 'threats' && (
@@ -622,6 +639,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
               <ThreatOverlayContext.Provider
                 value={{
                   threatsByTarget: overlayLayers.threatBadges ? openThreatsByTarget : EMPTY_THREAT_MAP,
+                  riskColorByTarget,
                   onViewThreat: viewThreatOnCanvas,
                 }}
               >

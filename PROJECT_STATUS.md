@@ -236,6 +236,24 @@ relevant DREAD field(s) up when an attribute signals elevated risk (no auth →
 same attribute keys, so a change in the Inspector is "mappable back to STRIDE
 and DREAD" without extra wiring per the original request.
 
+**DREAD risk-level overlay coloring** — second overlay layer (see "Threat
+overlay on canvas" below for the first). `OverlayLayers` gained
+`dreadRiskColoring`; `ThreatOverlayContext` gained `riskColorByTarget` (target
+id -> the color of its *highest* open-threat DREAD risk level, computed in
+`Canvas.tsx`). Applied via a new `withRiskRing()` helper in `nodeColor.ts`
+that layers a colored `boxShadow` ring on top of whatever fill/border/text
+the user already picked, rather than overriding it — risk coloring and
+custom node colors coexist. Only nodes get the ring (not edges — a thin line
+doesn't show a glow usefully); the checkbox in the Overlay menu is hidden
+entirely (not just disabled) when the project doesn't have DREAD enabled,
+since the layer is meaningless without DREAD scores.
+
+**Parallel-edge endpoint spacing tuned** — quick follow-up to the fan-out fix;
+`ENDPOINT_SPACING` 10→20 and `PARALLEL_SPACING` 28→32 in `FloatingEdge.tsx`
+for clearer separation where multiple edges land on a node. User flagged this
+as needing more design work beyond just the numbers (see backlog) — this is
+a partial improvement, not the full polish pass.
+
 **Threat overlay on canvas** — `src/canvas/ThreatBadge.tsx` +
 `src/canvas/ThreatOverlayContext.tsx`. Every Process/External Entity/Data
 Store node and every data flow edge shows a small colored count badge (tiered

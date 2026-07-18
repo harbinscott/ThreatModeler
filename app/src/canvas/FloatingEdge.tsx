@@ -11,8 +11,8 @@ import { getEdgeParams } from './floating'
 import { ThreatBadge } from './ThreatBadge'
 import type { DiagramEdge, DiagramNode } from '../types/project'
 
-const PARALLEL_SPACING = 28
-const ENDPOINT_SPACING = 10
+const PARALLEL_SPACING = 32
+const ENDPOINT_SPACING = 20
 
 function nodeCenter(node: InternalNode<DiagramNode>) {
   const w = node.measured.width ?? 150
