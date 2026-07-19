@@ -48,14 +48,40 @@ obvious from the code alone.
      built instead of a real Jira/GitHub API integration per user's
      explicit scope choice (no credentials/network calls needed, works
      with any tracker).
-3. **Next up: Release 10 — Reporting & Risk Register Enhancements**
-   (scoped, not built): inherent-vs-residual DREAD scores, sub-diagrams
-   included in PDF export with a header per level, a Threats risk-register
-   table view, CSV export, compliance/DREAD-risk filters on the Threats
-   tab, and standalone diagram PNG/SVG export. See "Release roadmap" below
-   for the full scoping notes, including the sub-diagram PDF capture
+3. **Next up (after the bugfix): Release 10 — Modern Elements: AI Risk
+   Surface & API Gateway** (scoped this session, not built) — new. The user
+   supplied a competitor requirements doc
+   (`threat-modeling-tool-requirements.md`) at the start of this session;
+   most of it was already built or already roadmapped (see "Requirements
+   doc gap analysis" below for the full comparison), but two ideas the user
+   raised independently — AI/ML processing as a declared risk surface, and
+   modern mitigation types like API Gateway — weren't, and were scoped as
+   their own release, bundled together since they're both "extend the
+   element/mitigation catalog" work of similar shape. See "Release roadmap"
+   below for the full scope.
+4. **Release 11 — Reporting & Risk Register Enhancements** (renumbered
+   from 10 to make room for the above; scoped, still not built):
+   inherent-vs-residual DREAD scores, sub-diagrams included in PDF export
+   with a header per level, a Threats risk-register table view, CSV
+   export, compliance/DREAD-risk filters on the Threats tab, and
+   standalone diagram PNG/SVG export. See "Release roadmap" below for the
+   full scoping notes, including the sub-diagram PDF capture
    implementation wrinkle already flagged there.
-4. One more unrelated bug reported earlier this session, logged but **not
+5. **Release 13 — Requirements Gap Coverage** (new this session, scoped
+   from the requirements-doc comparison, not built): MITRE ATT&CK citations
+   alongside the existing CAPEC/CWE ones, control verification states
+   (proposed/implemented/verified/failed — weighted DREAD mitigation
+   credit instead of today's all-or-nothing), a DREAD scoring rubric with
+   anchor descriptions per 1-10 value, more compliance framework tags
+   (HIPAA, ISO 27001 Annex A, NIST CSF 2.0, FedRAMP), a reverse/auditor
+   compliance view, project templates, a risk-trend dashboard (newly
+   *feasible* now that Release 9's `revisionHistory` gives us timestamped
+   snapshots), and SARIF/OTM export. See "Release roadmap" below for the
+   full writeup, including what was deliberately left out (live cloud
+   discovery, SIEM/scanner closed-loop, CMDB/IdP integration, a networked
+   REST API — all assume external systems or a server component this local
+   desktop app doesn't have).
+6. One more unrelated bug reported in an earlier session, logged but **not
    yet fixed** per explicit user request (backlog only):
    `ColorSwatchPicker.tsx`'s "Recent" custom colors all show the same color
    instead of a history of distinct ones after a single custom pick. Root
@@ -65,21 +91,22 @@ obvious from the code alone.
    `addRecentColor()` many times per pick, but `color.ts`'s dedup logic
    looks correct in isolation on a static read, so this needs interactive
    debugging before a fix, not a guess. See Backlog below.
-5. Releases 6 (mitigation elements), 7 (threat intelligence grounding), and
-   8 (diagram scalability) are done and fully verified — see "What's
-   built" below for the full writeups, not repeated here now that Release
-   9 is the latest work.
-6. One more item came in from Release 3 testing and was folded into the
+7. Releases 6 (mitigation elements), 7 (threat intelligence grounding), 8
+   (diagram scalability), and 9 (SDLC integration) are done and fully
+   verified — see "What's built" below for the full writeups.
+8. One more item came in from Release 3 testing and was folded into the
    roadmap rather than built immediately: an unsaved-changes guard (warn
    before navigating away from an edited-but-unsaved diagram) — Backlog
-   item 1 below, small and a real data-safety gap. Not started.
-7. Two small backlog items remain from earlier sessions, both low priority,
+   item 2 below, small and a real data-safety gap. Not started.
+9. Two small backlog items remain from earlier sessions, both low priority,
    neither blocking: trust boundary shape editing *after* creation
    (currently creation-time only), and further parallel-edge endpoint
    visual polish. See Backlog below.
-8. Everything is committed and pushed to
-   `https://github.com/harbinscott/ThreatModeler` (`main` branch) as of the
-   end of this session.
+10. Everything is committed and pushed to
+    `https://github.com/harbinscott/ThreatModeler` (`main` branch) as of
+    the end of the previous session — see below for what's pending from
+    this session (the requirements-doc review and roadmap scoping have not
+    been pushed yet).
 
 ## What this is
 
@@ -194,6 +221,62 @@ fixed by normalizing on load in `Canvas.tsx`'s `useEffect`, not in main.js this
 time, but the principle is the same — check for it whenever you touch shape).
 
 ## What's built (roughly chronological)
+
+**Requirements doc gap analysis (session start)** — the user supplied a
+competitor requirements doc (`threat-modeling-tool-requirements.md`,
+downloaded, not committed to the repo) describing a hypothetical
+"living threat model" platform benchmarked against Microsoft TMT, OWASP
+Threat Dragon, IriusRisk, ThreatModeler, SD Elements, pytm, and Threagile.
+Read section by section and compared against everything already built or
+already roadmapped, rather than treating it as a fresh feature list —
+most of the document turned out to already be covered:
+
+*Already built, matching or exceeding the doc's ask*: STRIDE per-element
+and per-interaction (`ruleEngine.ts`), rule-driven threat generation,
+CAPEC/CWE citation grounding (Release 7, plus live-verified — the doc
+doesn't even ask for that rigor), inherent architectural signals feeding
+DREAD (MS-TMT attributes, trust-boundary crossings), forward compliance
+mapping (data classification → activated framework requirements → DREAD
+bumps, Release 5), control objects with STRIDE/DREAD mitigation effects
+(mitigation elements, Release 6 — narrower than the doc's generic
+"control coefficient" system but covers the same underlying need without
+a bigger rearchitect), the full PASTA 7-stage workflow, and version
+history (Release 9, though deliberately without a diff view — see that
+section).
+
+*Already roadmapped, not yet built*: inherent-vs-residual DREAD scoring,
+IaC import, custom user-defined STRIDE rules, crown-jewel asset tagging,
+attack-path chaining (PASTA stage 6) — all already sitting in Release
+11/12 below before this doc was even read, which the doc's own "Suggested
+Build Priority" section (phase one: DFD editor + STRIDE + rubric DREAD +
+control objects + Jira integration + JSON export) confirms we've already
+substantially exceeded.
+
+*Genuine gaps, newly scoped into Release 13*: MITRE ATT&CK citations,
+control verification states (proposed/implemented/verified/failed with
+weighted DREAD credit — the single highest-value idea in the whole doc),
+a DREAD rubric with scoring anchors, more compliance framework tags
+(HIPAA/ISO 27001/NIST CSF/FedRAMP), a reverse/auditor compliance view,
+project templates, a risk-trend dashboard, and SARIF/OTM export.
+
+*Consciously not pursuing*, and named explicitly rather than silently
+dropped, since "doesn't fit this app's shape" is a decision worth
+recording, not an oversight to rediscover later: live cloud discovery
+(AWS/Azure/GCP), SIEM/scanner closed-loop verification, CMDB/IdP
+integration, a networked REST API, self-hosted/SaaS deployment. Every one
+of these assumes either a server component or real external systems —
+this is a local, single-user desktop app, and building any of these would
+change what kind of product it is, not just extend it. Jira/GitHub
+integration specifically was already evaluated and deliberately scoped
+down to Copy-as-Markdown (Release 9) for the same reason, one release
+before this doc showed up — consistent with the pattern, not a new
+decision.
+
+Two ideas came from the user independently overnight, not from the
+requirements doc, and turned out sharper than anything the doc proposes
+for the same territory — AI/ML processing as a declared risk surface (the
+doc doesn't mention AI at all) and modern mitigation types like API
+Gateway. Bundled into the new Release 10 — see "Release roadmap" below.
 
 **App shell**: `src/pages/Dashboard.tsx` (project list, create/delete/export/import),
 `src/pages/NewProjectWizard.tsx`, `src/components/FrameworkPicker.tsx` (STRIDE/DREAD/PASTA
@@ -1129,9 +1212,42 @@ already built:
   ownership + a due date, floated as a possible pairing with the original
   Jira idea, wasn't built — still worth considering for a future release if
   wanted, but nothing forces it now that the tracker-push scope changed.
-- **Release 10 — Reporting & Risk Register Enhancements** *(scoped this
-  session from a "review everything as a professional risk assessor" ask;
-  not started)*:
+- **Release 10 — Modern Elements: AI Risk Surface & API Gateway** *(scoped
+  this session; not started; next up after the Tidy Up bugfix)*. Prompted
+  by the user's own "keep the tool from going stale" ideas, evaluated
+  against the requirements doc (see "Requirements doc gap analysis" below)
+  and found to be sharper than anything the doc itself proposes for AI
+  specifically:
+  - **AI/ML processing as a declared risk surface** — new attributes on
+    Process (`usesAI` boolean, `aiFunction` type select — e.g. "LLM/
+    Generative AI", "ML Classification/Scoring", "Recommendation Engine",
+    "Computer Vision", "Other") and on External Entity
+    (`usesThirdPartyAIProvider` — data leaving the trust boundary to an
+    external LLM API is the sharpest, most current real-world version of
+    this risk, e.g. sending PII to a third-party model). Same
+    `mstmAttributes.ts` pattern every other element-type attribute set
+    already uses — nothing structurally new needed. Feeds new STRIDE
+    threats (prompt injection / adversarial input on Tampering,
+    training/inference data leakage on Information Disclosure) and DREAD
+    bumps the same way MS-TMT attributes already do. Stretch idea within
+    this item, not required for v1: cite OWASP's LLM Top 10 the same way
+    Release 7 cites CAPEC/CWE, verified live before shipping per that
+    release's established practice.
+  - **API Gateway as a new mitigation stencil**, plus room for a couple of
+    other modern mitigation types if it makes sense once this is underway.
+    Mostly fits the *existing* mitigation attribute schema as-is (blocks
+    unauthorized traffic / inspects payload / logs traffic / rules up to
+    date all already apply) — the one genuinely new field needed is
+    `rateLimitingEnabled`, which would be **the first mitigation attribute
+    with a clean, statable reason to reduce Denial-of-Service risk**
+    specifically (today's `mitigationContributions()` only ever touches
+    Tampering — see Release 6's writeup for why). New
+    `controlsForMitigationType()` entries for API Gateway (likely NIST
+    800-53 SC-7/AC-4 and OWASP ASVS, an app-layer control like WAF) —
+    verify the exact control IDs live before shipping, same as every other
+    citation added since Release 7.
+- **Release 11 — Reporting & Risk Register Enhancements** (renumbered from
+  10 to make room for the above; scoped, not started):
   - **Inherent vs. residual risk** — once a mitigation lowers a flow's
     DREAD score (Release 6), there's currently no way to see what the
     score *would have been* without it. Show both numbers (inherent =
@@ -1166,19 +1282,67 @@ already built:
   - **Standalone diagram export (PNG/SVG)** — `captureDiagramImage()`
     already does the capture internally for PDF export; exposing it as a
     direct export option is small additional work.
-- **Release 11 — Stretch** (original Phase 7 ideas, still valid, renumbered
-  from Release 10 to make room for the reporting work above): custom
-  user-defined STRIDE rules, IaC import (Terraform/CloudFormation →
-  diagram elements), "crown jewel" asset tagging for risk prioritization
-  (would also feed DREAD scoring the same way compliance tags do — a
-  natural extension of the existing `complianceContributions()` pattern).
-  Also noted as worth considering for a future release, not yet scoped:
-  attack-path analysis (the diagram is already a graph, and mitigation
-  nodes already sit in-line on flows — tracing the shortest path from an
-  untrusted External Entity to a sensitive Data Store and showing what's
-  mitigated along the way could be a genuinely differentiated feature),
-  and lightweight reviewer comments per threat (distinct from resolution
+- **Release 12 — Stretch** (original Phase 7 ideas, still valid, renumbered
+  again to make room — was Release 10, then 11): custom user-defined
+  STRIDE rules, IaC import (Terraform/CloudFormation → diagram elements),
+  "crown jewel" asset tagging for risk prioritization (would also feed
+  DREAD scoring the same way compliance tags do — a natural extension of
+  the existing `complianceContributions()` pattern). Also noted as worth
+  considering for a future release, not yet scoped: attack-path analysis
+  (the diagram is already a graph, and mitigation nodes already sit
+  in-line on flows — tracing the shortest path from an untrusted External
+  Entity to a sensitive Data Store and showing what's mitigated along the
+  way could be a genuinely differentiated feature — the requirements doc
+  independently flags this as one of the biggest differentiators in the
+  market, "very few tools do this well," worth weighing above plain
+  "stretch" priority when this release actually comes up), and
+  lightweight reviewer comments per threat (distinct from resolution
   notes, for async review cycles short of full multi-user editing).
+- **Release 13 — Requirements Gap Coverage** *(new this session, scoped
+  from a systematic comparison against the user-supplied competitor
+  requirements doc; not started)*. See "Requirements doc gap analysis"
+  below under "What's built" for the full comparison this was drawn from,
+  including everything already covered and everything consciously *not*
+  being pursued (with reasons):
+  - **MITRE ATT&CK technique ID citations** alongside the existing
+    CAPEC/CWE ones (Release 7) — same `threatIntel.ts` architecture,
+    same "verify every id live before shipping" practice.
+  - **Control verification states** — proposed/implemented/verified/
+    failed-or-regressed, with only `verified` controls getting full DREAD
+    mitigation weight and `implemented`-but-unverified getting partial
+    credit. The single highest-value idea from the requirements doc;
+    extends the existing mitigation-attribute architecture (Release 6)
+    rather than replacing it.
+  - **DREAD scoring rubric** — defined anchor descriptions per 1-10 value
+    for each of the 5 fields, shown alongside the existing hint tooltips,
+    for the situations automation can't derive a score and a human has to
+    pick one.
+  - **More compliance framework tags**: HIPAA, ISO 27001 Annex A, NIST
+    CSF 2.0, FedRAMP — extends the existing `ComplianceTag` union
+    (Release 5), same propagation/DREAD-bump architecture, no new
+    mechanism needed.
+  - **Reverse/auditor compliance view** — start from a framework
+    requirement, see which components it applies to and their status;
+    the framework-centric companion to Release 11's target-centric risk
+    register.
+  - **Project templates** — common patterns (three-tier web app,
+    event-driven microservice, data pipeline) as diagram starting points,
+    distinct from Release 3's per-element "save as custom element."
+  - **Risk-trend dashboard** — newly *feasible*, not just theoretically
+    nice, now that Release 9's `revisionHistory` gives us timestamped
+    project snapshots to chart against.
+  - **SARIF and OTM (Open Threat Model) export** — CI-gate/interop-
+    friendly formats, same shape as the existing CSV/Markdown exporters
+    (no credentials or network calls needed, unlike the scanner/SIEM/CMDB
+    integrations the doc also lists — see below for why those are out).
+  - **Explicitly not pursuing**, named rather than silently dropped: live
+    cloud discovery (AWS/Azure/GCP read-only API), SIEM/scanner
+    closed-loop control verification, CMDB/IdP integration, a networked
+    REST API, self-hosted/SaaS deployment split. All assume either a
+    server component or real external systems this local single-user
+    desktop app doesn't have and isn't trying to be — building any of
+    these would be a different kind of product, not an extension of this
+    one.
 
 ## Backlog (explicitly deferred, in rough priority order per most recent conversation)
 
