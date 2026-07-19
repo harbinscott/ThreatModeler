@@ -8,27 +8,19 @@ obvious from the code alone.
 
 ## Resume here (updated end of this session)
 
-1. **🔴 Priority fix for next session: "Tidy up" can orphan a node outside
-   its trust boundary.** User-reported with before/after screenshots:
-   clicking Tidy Up (`autoLayoutDiagram` in `src/canvas/autoLayout.ts`,
-   Release 8 part 2) moved "Message Queue" from inside the "INTERNAL
-   NETWORK" trust boundary to a position entirely outside all boundaries,
-   while its siblings (Database, Web Server, Load Balancer) correctly
-   stayed contained. **Not yet fixed or interactively debugged** — this is
-   a real correctness regression in a shipped feature, not polish, and
-   should be the first thing addressed next session. Leading hypothesis
-   (static analysis only, not confirmed against a repro): dagre's
-   compound/cluster support (used via `g.setParent()` to keep a
-   boundary's children together) is best-effort during ranking, not a hard
-   constraint — a child node with edges pulling toward nodes in a
-   different rank/cluster (Message Queue appears to have a cross-boundary
-   edge to "Third-Party Service") can end up positioned outside its
-   cluster's final bounding box even though `setParent()` was called
-   correctly. Recommended fix direction: add a post-layout correction pass
-   that clamps any child node whose final dagre position falls outside its
-   intended boundary's final computed rect back inside it (with interior
-   padding), rather than trusting dagre's compound output unconditionally.
-   See Backlog below for the tracked entry.
+1. **✅ Fixed and confirmed: "Tidy up" no longer orphans a node outside
+   its trust boundary.** Took three attempts, each checked against a real
+   repro — the first two (dagre compound-cluster tuning) were shipped and
+   still failed live; the actual root cause was that XYFlow renders a
+   resized node from its top-level `width`/`height`/`measured`, not
+   `style.width/height`, and the fix only ever wrote `style`. See
+   "Auto-layout boundary-containment fix" under "What's built" for the
+   full writeup — worth reading if another "layout looks right in the data
+   but wrong on screen" bug ever shows up, since the same top-level-vs-style
+   size mismatch could resurface elsewhere. A layout-*quality* follow-up
+   (minimize total edge length, default to horizontal/left-to-right
+   orientation for wide monitors) was explicitly scoped as backlog polish,
+   not a correctness fix — see Backlog item 4.
 2. **Release 9 — SDLC Integration — done and fully verified, all three
    stages.** See "SDLC integration (Release 9)" under "What's built" below
    for the full writeup. Highlights:
@@ -48,8 +40,8 @@ obvious from the code alone.
      built instead of a real Jira/GitHub API integration per user's
      explicit scope choice (no credentials/network calls needed, works
      with any tracker).
-3. **Next up (after the bugfix): Release 10 — Modern Elements: AI Risk
-   Surface & API Gateway** (scoped this session, not built) — new. The user
+3. **Next up: Release 10 — Modern Elements: AI Risk Surface & API Gateway**
+   (scoped this session, not built) — new. The user
    supplied a competitor requirements doc
    (`threat-modeling-tool-requirements.md`) at the start of this session;
    most of it was already built or already roadmapped (see "Requirements
@@ -97,16 +89,17 @@ obvious from the code alone.
 8. One more item came in from Release 3 testing and was folded into the
    roadmap rather than built immediately: an unsaved-changes guard (warn
    before navigating away from an edited-but-unsaved diagram) — Backlog
-   item 2 below, small and a real data-safety gap. Not started.
-9. Two small backlog items remain from earlier sessions, both low priority,
-   neither blocking: trust boundary shape editing *after* creation
-   (currently creation-time only), and further parallel-edge endpoint
-   visual polish. See Backlog below.
+   item 1 below, small and a real data-safety gap. Not started.
+9. Three small backlog items remain, all low priority, none blocking:
+   trust boundary shape editing *after* creation (currently creation-time
+   only), further parallel-edge endpoint visual polish, and Tidy Up layout
+   *quality* (edge-length minimization, horizontal/left-to-right default
+   orientation — new this session, explicitly scoped as polish, distinct
+   from the correctness bug fixed in item 1 above). See Backlog below.
 10. Everything is committed and pushed to
     `https://github.com/harbinscott/ThreatModeler` (`main` branch) as of
-    the end of the previous session — see below for what's pending from
-    this session (the requirements-doc review and roadmap scoping have not
-    been pushed yet).
+    the end of this session, including the Tidy Up bugfix and the
+    requirements-doc review/roadmap scoping from the session before it.
 
 ## What this is
 
@@ -740,7 +733,79 @@ abort the whole delete if the user cancels — a real data-safety gap the
 user caught before it bit anyone, same category of fix as Release 3's
 unsaved-changes-guard backlog item.
 
-**Auto-layout (Release 8, part 2)** — `src/canvas/autoLayout.ts`,
+**Auto-layout boundary-containment fix (bugfix session)** — the day
+Release 8 part 2 shipped, the user reported (with before/after
+screenshots) that clicking Tidy Up could move a node entirely outside its
+trust boundary while its siblings stayed correctly contained. Took three
+attempts to actually fix, each verified (or falsified) against real data
+rather than guessed:
+
+*Attempt 1 (rejected before shipping)*: hypothesized dagre's compound/
+cluster support (`g.setParent()`) was best-effort during ranking, not a
+hard constraint. Built a standalone repro against the real `dagre`
+package with data closely mimicking the user's diagram — it did **not**
+reproduce the bug, falsifying this theory before it shipped.
+
+*Attempt 2 (shipped, then failed live)*: revised theory — dagre's
+self-reported cluster bounding box (`g.node(boundaryId)`) is computed at
+an earlier layout pass than final child positions, so trusting it for the
+boundary's rendered rect could disagree with where children actually
+landed. Fix: stopped reading the boundary's rect from dagre's cluster
+report, instead computed it directly from members' actual final
+positions. Typechecked, shipped, user retested — **still failed**, with
+screenshots showing members visually outside a boundary that looked
+correctly fitted to a *different*, smaller subset of them.
+
+*Attempt 3 (the actual fix)*: rather than patch the compound-cluster
+approach again, rewrote `autoLayoutDiagram()` to not use dagre's compound
+feature at all — a **two-level layout** where containment is structural
+rather than something dagre has to honor. For each boundary, its members
+are laid out in an isolated dagre pass using *only* edges between those
+members (a cross-boundary edge literally cannot pull on a node it can't
+see); a second "macro" pass then lays out each boundary as a single
+opaque node sized to fit its micro layout, alongside any unboundaried
+top-level nodes, connected by the original edges collapsed onto whichever
+boundary (or bare node) each endpoint belongs to. Each member's final
+position is boundary-top-left + its micro-relative offset — provably
+inside the boundary's rect by construction. Verified this against a
+synthetic repro with real `dagre`, but **still failed live** — the
+`parentOf` assignment and the arithmetic were both correct; the
+containment math simply wasn't what the screen was showing.
+
+**The real root cause**, found by pulling the user's actual saved
+project JSON off disk (`%APPDATA%\app\projects\*.json`, the dev
+`userData` path — Electron's `app.getName()` defaults to `package.json`'s
+`"name"` field, `"app"`, not `productName`) and running the layout logic
+against it directly in a standalone script: `DiagramNode` is XYFlow's
+`Node` type, which carries size in *two* independent places — a nested
+`style.width`/`style.height`, and (once a node has ever been resized via
+`NodeResizer`, which trust boundaries support) top-level `width`/`height`
++ `measured`. XYFlow renders from the top-level fields once they're
+populated, ignoring `style.width/height` entirely. Both of the previous
+two fixes only ever wrote `style` on the returned boundary node — so the
+box kept *rendering* at its old, stale size while members were being
+*positioned* for the new, larger size the layout had just calculated.
+That's exactly "boundary box looks tightly fitted to 2 nodes, but 2 more
+members render outside it" — the geometry was right the whole time, the
+box just wasn't visually resizing. Fix: the boundary branch of
+`autoLayoutDiagram()`'s return map now also sets `width`, `height`, and
+`measured: { width, height }` at the top level, not just inside `style`.
+Verified against the real saved diagram data before shipping (not a
+synthetic guess) — every member matched its correct boundary with zero
+drift, pre- and post-layout. Confirmed working live afterward, including
+on a diagram that had accumulated stale/inconsistent sizes from the two
+earlier failed attempts.
+
+The methodology across all three attempts is the takeaway worth keeping:
+every fix was checked against a real repro (first synthetic, then the
+user's actual saved data) before being called done, and two of the three
+were caught as insufficient *before* wasting another live test round —
+consistent with this project's established practice (Release 7's live
+CAPEC/CWE/ASVS verification) of not presenting unverified analysis as
+fact.
+
+**Auto-layout (Release 8, part 2; rewritten in the bugfix session above —
+this describes the current implementation)** — `src/canvas/autoLayout.ts`,
 `autoLayoutDiagram(diagram)`, wired to a new "Tidy up" button in the
 Diagram tab ribbon (`handleTidyUp()` in `Canvas.tsx`, disabled when there
 are no non-boundary nodes). Uses `dagre` (added as a dependency) for a
@@ -749,15 +814,19 @@ Trust boundaries have no edges of their own — they represent spatial
 containment, not flow connectivity, which is what dagre lays out by — so
 naively treating them as ordinary nodes would place them disconnected from
 everything, and leaving them fixed while their contents move would let
-nodes drift outside the boundary they're supposed to be in. Instead each
-boundary becomes a dagre *compound* (cluster) parent (`g.setParent()`) for
-whatever's inside it (via the same `innermostBoundary()` helper
-`ruleEngine.ts` already uses for crossing detection), and dagre computes
-each cluster's own bounding box from its children — so a reflow always
-leaves a boundary correctly enclosing its members, growing/shrinking/
-repositioning as needed rather than staying at its old size. One undo step
-(picked up by the existing debounced undo recorder, no special-casing
-needed).
+nodes drift outside the boundary they're supposed to be in. **Does not**
+use dagre's compound/cluster feature (`g.setParent()`) — see "Auto-layout
+boundary-containment fix" above for why that approach was abandoned after
+two failed attempts. Instead runs a two-level layout: each boundary's
+members are laid out in their own isolated dagre pass first (using only
+edges between those members, via the same `innermostBoundary()` helper
+`ruleEngine.ts` already uses for crossing detection), then a second
+"macro" pass lays out each boundary as a single opaque node sized to fit
+its own members, alongside any unboundaried nodes. A member's final
+position is always boundary-position + its offset within that isolated
+layout, so containment holds by construction rather than depending on
+dagre's cluster behavior. One undo step (picked up by the existing
+debounced undo recorder, no special-casing needed).
 
 **Threat intelligence grounding (Release 7)** — new
 `src/threats/threatIntel.ts`, two pure/unpersisted functions (same "derived,
@@ -1346,26 +1415,7 @@ already built:
 
 ## Backlog (explicitly deferred, in rough priority order per most recent conversation)
 
-1. **🔴 "Tidy up" can orphan a node outside its trust boundary** —
-   user-reported (with before/after screenshots) the day it shipped:
-   clicking Tidy Up (`autoLayoutDiagram` in `src/canvas/autoLayout.ts`,
-   Release 8 part 2) moved "Message Queue" out of the "INTERNAL NETWORK"
-   trust boundary entirely, while its siblings (Database, Web Server, Load
-   Balancer) stayed correctly contained. **Highest priority — a real
-   correctness regression, not polish.** Not yet interactively debugged.
-   Leading hypothesis: dagre's compound/cluster support (`g.setParent()`,
-   used to keep a boundary's children together) is best-effort during
-   ranking, not a hard constraint — a child with edges pulling toward
-   nodes in a different rank/cluster (Message Queue appears to have a
-   cross-boundary edge to "Third-Party Service") can end up positioned
-   outside its cluster's final bounding box even though `setParent()` was
-   called correctly. Recommended fix direction: a post-layout correction
-   pass that clamps any child node whose final dagre position falls
-   outside its intended boundary's final computed rect back inside it
-   (with interior padding), rather than trusting dagre's compound output
-   unconditionally. Verify against the actual repro before committing to
-   this diagnosis, though — it's analysis, not a confirmed root cause.
-2. **Unsaved-changes guard** — added this session, user-flagged as a real
+1. **Unsaved-changes guard** — added this session, user-flagged as a real
    data-safety gap while testing Release 3. Right now the Canvas back arrow
    (and presumably project switch/close) discards any unsaved diagram edits
    with no warning. Needs: a "dirty" flag (compare current nodes/edges/
@@ -1373,17 +1423,32 @@ already built:
    by any mutation and cleared by `save()`), and a confirm dialog on
    navigate-away offering Save / Discard / Cancel. Small, self-contained,
    worth doing before it costs someone real work.
-3. **Trust boundary shape editing after creation** — shape can only be
+2. **Trust boundary shape editing after creation** — shape can only be
    picked at creation time via the toolbar preset; there's no way to change
    an existing boundary's shape afterward. The Inspector shows nothing
    boundary-specific beyond Name/Description/Color/Boundary type (added in
    Release 3). Small, contained addition if wanted (add a shape selector to
    `NodeInspector` in `Inspector.tsx`, gated on `elementType ===
    'trust-boundary'`).
-4. **Parallel-edge endpoint visual polish** — spacing constants were tuned
+3. **Parallel-edge endpoint visual polish** — spacing constants were tuned
    once (`ENDPOINT_SPACING`/`PARALLEL_SPACING` in `FloatingEdge.tsx`) but the
    user still feels it needs a proper design pass, not just bigger numbers.
    Low priority.
+4. **Tidy Up layout quality** — the Tidy Up bug (nodes rendering outside
+   their trust boundary) is fixed, see "Auto-layout boundary-containment
+   fix" under "What's built" — this item is about the *quality* of an
+   already-correct layout, not a correctness bug. User feedback after
+   confirming the fix: the layout should weight minimizing total edge
+   length (currently dagre just ranks by graph topology with no length
+   objective) and should default to a horizontally-oriented flow rather
+   than top-to-bottom, since most monitors are wider than tall. Explicitly
+   scoped as polish/visual refinement, lower priority than functional work
+   — user's own words: "I think that can go into the visual improvement
+   backlog." Would touch `rankdir` (try `'LR'` instead of `'TB'` in both
+   the micro and macro dagre passes in `autoLayout.ts`) and possibly
+   dagre's `ranksep`/`nodesep`/`align` tuning; true edge-length
+   minimization beyond what dagre's own heuristics already do would need
+   more investigation.
 5. **Recent custom colors all show the same color** — user-reported (with
    screenshot) during Release 8 testing: picking one custom color via the
    native color-wheel input makes all 5 "Recent" swatch boxes in
