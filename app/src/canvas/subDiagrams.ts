@@ -61,3 +61,42 @@ export function removeSubDiagramSubtree(project: Project, subDiagramId: string):
   for (const id of toRemove) delete remaining[id]
   return { ...project, subDiagrams: remaining }
 }
+
+/** Every subDiagramId reachable from the project's top level (Release 11,
+ *  PDF export) — depth-first discovery order, walking the same
+ *  parent-points-at-child shape `collectNestedSubDiagramIds` above uses,
+ *  generalized to start from the top level and collect rather than start
+ *  from one id and remove. Stable across calls, so a PDF's level ordering
+ *  doesn't shuffle between exports of the same project. */
+export function collectAllSubDiagramIds(project: Project): string[] {
+  const acc: string[] = []
+  const seen = new Set<string>()
+  function walk(nodes: DiagramNode[]) {
+    for (const n of nodes) {
+      const subId = n.data.subDiagramId
+      if (!subId || seen.has(subId)) continue
+      seen.add(subId)
+      acc.push(subId)
+      const sub = project.subDiagrams?.[subId]
+      if (sub) walk(sub.diagram.nodes)
+    }
+  }
+  walk(project.diagram.nodes)
+  return acc
+}
+
+/** The label of whichever Process node owns a given sub-diagram, searched
+ *  across every level (not just the top) since a sub-diagram can itself be
+ *  nested under another. Falls back to a generic label rather than
+ *  failing — a PDF export shouldn't hard-error over a missing label. */
+export function labelForSubDiagram(project: Project, subDiagramId: string): string {
+  const levels: DiagramNode[][] = [
+    project.diagram.nodes,
+    ...Object.values(project.subDiagrams ?? {}).map((s) => s.diagram.nodes),
+  ]
+  for (const nodes of levels) {
+    const owner = nodes.find((n) => n.data.subDiagramId === subDiagramId)
+    if (owner) return owner.data.label
+  }
+  return 'Sub-diagram'
+}

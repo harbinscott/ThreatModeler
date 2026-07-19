@@ -48,29 +48,37 @@ obvious from the code alone.
    types like API Gateway — bundled into one release since they're both
    "extend the element/mitigation catalog" work of similar shape. See
    "Modern elements: AI risk surface & API Gateway (Release 10)" under
-   "What's built" for the full writeup. **Next up: Release 11 — Reporting
-   & Risk Register Enhancements** (scoped, not started) — see "Release
+   "What's built" for the full writeup.
+4. **✅ Release 11 — Reporting & Risk Register Enhancements — done and
+   verified, all six stages (A-F).** Inherent-vs-residual DREAD scores,
+   compliance-tag and DREAD-risk-level filters, CSV export, standalone
+   diagram export (PNG/SVG), a sortable Table view, and sub-diagrams
+   included in PDF export with their own header/screenshot/threat table.
+   See "Reporting & risk register enhancements (Release 11)" under "What's
+   built" for the full writeup, including two real bugs found and fixed
+   live during testing (not just the intended feature work):
+   - A debugging session that traced a "mitigation isn't affecting scores"
+     report to a genuine user workflow gap, not a code bug: diagram edits
+     don't auto-refresh threats, so a newly-spliced mitigation edge shows
+     zero threats until "Regenerate Threats" is clicked again. Logged as
+     Backlog item 6 (a UI nudge for this) per the user's own suggestion.
+   - **A real export bug**: after bumping diagram-capture resolution
+     (`pixelRatio: 3`, per user feedback that exports looked too soft to
+     read), the user reported connection lines had gone invisible in
+     exports. Root cause wasn't the resolution bump itself — uncustomized
+     edges never had an inline stroke color at all, relying entirely on
+     `var(--xy-edge-stroke, var(--xy-edge-stroke-default))` from XYFlow's
+     stylesheet, which `html-to-image`'s DOM capture doesn't reliably
+     resolve. Fixed in `edgeStyle.ts` by inlining the actual color XYFlow
+     was already resolving it to (`#3e3e3e`) — same look on screen, now
+     robust to export. **Worth remembering for any future export/
+     screenshot work**: anything relying on a CSS custom property for its
+     visual appearance (not an inline style) is a risk for `html-to-image`
+     capture specifically — check for this pattern first if a future
+     export looks like it's silently dropping something that renders fine
+     live.
+   Next up: **Release 12 — Stretch** (scoped, not started) — see "Release
    roadmap" below for the full scope.
-4. **Release 11 — Reporting & Risk Register Enhancements — stages A-E done
-   and verified, stage F (sub-diagrams in PDF export) is what's next.**
-   Done: inherent-vs-residual DREAD scores (Threats tab detail view + both
-   PDF variants), compliance-tag and DREAD-risk-level filters, CSV export
-   of the currently-filtered threat list, standalone diagram export
-   (PNG/SVG), and a sortable Table view alongside the original list+detail
-   layout. See "Reporting & risk register enhancements, stages A-E
-   (Release 11)" under "What's built" for the full writeup — including a
-   live debugging session (see that section) that turned out to be a real
-   user workflow gap, not a code bug: diagram edits (like splicing a
-   mitigation onto a flow) don't auto-refresh threats, so a newly-spliced
-   edge shows zero threats — and any DREAD-frozen threat stays frozen —
-   until "Regenerate Threats" is clicked again. Logged as Backlog item 6
-   (a UI nudge for this) per the user's own suggestion after hitting it
-   live. **Not yet built**: sub-diagrams included in PDF export with a
-   header per level — see "Release roadmap" below for the scoping notes,
-   including the implementation wrinkle already flagged there (only one
-   diagram level is ever mounted at a time, so capturing every level needs
-   driving navigation programmatically and restoring the user's original
-   position when done).
 5. **Release 13 — Requirements Gap Coverage** (new this session, scoped
    from the requirements-doc comparison, not built): MITRE ATT&CK citations
    alongside the existing CAPEC/CWE ones, control verification states
@@ -96,8 +104,9 @@ obvious from the code alone.
    looks correct in isolation on a static read, so this needs interactive
    debugging before a fix, not a guess. See Backlog below.
 7. Releases 6 (mitigation elements), 7 (threat intelligence grounding), 8
-   (diagram scalability), and 9 (SDLC integration) are done and fully
-   verified — see "What's built" below for the full writeups.
+   (diagram scalability), 9 (SDLC integration), 10 (AI risk surface & API
+   Gateway), and 11 (reporting & risk register enhancements) are all done
+   and fully verified — see "What's built" below for the full writeups.
 8. One more item came in from Release 3 testing and was folded into the
    roadmap rather than built immediately: an unsaved-changes guard (warn
    before navigating away from an edited-but-unsaved diagram) — Backlog
@@ -112,8 +121,8 @@ obvious from the code alone.
    below.
 10. Everything is committed and pushed to
     `https://github.com/harbinscott/ThreatModeler` (`main` branch) as of
-    the end of this session, including the Tidy Up bugfix and the
-    requirements-doc review/roadmap scoping from the session before it.
+    the end of this session, including Release 10, all of Release 11
+    (stages A-F), and the Tidy Up bugfix from earlier in the same session.
 
 ## What this is
 
@@ -804,10 +813,9 @@ evidence the standard renumbered again since Release 7, just a reminder
 that even "live" search results can disagree with each other, so the
 actual verification step matters, not just the act of searching.
 
-**Reporting & risk register enhancements, stages A-E (Release 11)** — done
-and verified, five independently-scoped additions to the Threats tab and
-its exports. Stage F (sub-diagrams in PDF export) is separate, still to
-come.
+**Reporting & risk register enhancements (Release 11)** — done and
+verified, six independently-scoped additions to the Threats tab and its
+exports.
 
 *Stage A — inherent vs. residual DREAD*: new `inherentDreadScore(threat)`
 and `hasMitigationCredit(threat)` in `dreadEngine.ts`, both pure functions
@@ -863,6 +871,60 @@ Elements/Flows table (`ElementsTable.tsx`) — that component's props/state
 are entirely nodes-and-edges-shaped with no threat awareness, and bolting
 threats onto it would have meant threading DREAD/compliance context
 through a component that has no other reason to know about either.
+
+*Stage F — sub-diagrams in PDF export*: `subDiagrams.ts` gained two pure
+helpers — `collectAllSubDiagramIds(project)` (depth-first discovery of
+every subDiagramId reachable from the top level, generalizing the same
+parent-points-at-child walk `removeSubDiagramSubtree` already used) and
+`labelForSubDiagram(project, id)` (finds whichever Process node across
+every level owns a given sub-diagram, for its section header). `Canvas.tsx`'s
+`handleExport()` takes a fast path — byte-for-byte the pre-Release-11
+behavior, no state mutation at all — when a project has no sub-diagrams;
+otherwise it walks every level (top + each sub-diagram, however nested),
+briefly loading each one into the live editing state via the same
+`loadLevelIntoState` every other navigation function already uses (only
+one level's `.react-flow` DOM is ever mounted at a time, so this is the
+only way to screenshot each one), capturing an image and that level's
+threats, then restoring whichever level the user was actually on when
+export started — in a `finally` block, so restoration happens even if the
+walk errors partway through. `reportTemplate.ts`'s `buildReportHtml` gained
+a `subLevels: ReportSubLevel[]` param.
+
+**Reworked mid-testing based on live user feedback, twice**:
+1. The first version rendered each sub-diagram as one contiguous block —
+   header, screenshot, threat table — appended after the main threat table.
+   User feedback: diagrams should read as a visual overview grouped near
+   the top of the document, not scattered one-per-level at the bottom like
+   an afterthought. Fixed by splitting `subLevelHtml` into
+   `subLevelDiagramHtml` (image only) and `subLevelThreatsHtml` (table
+   only) — every diagram (top + every sub-diagram) now groups into one
+   "System Diagrams" gallery near the top, while each sub-diagram's *threat
+   table* stays appendix-style after the main table, which is exactly
+   where tabular detail content belongs.
+2. Separately, the user found the exported screenshots too low-resolution
+   to read when zoomed — fixed by adding `pixelRatio: 3` to
+   `captureDiagramImage()`'s `html-to-image` options (affects both the
+   PDF's embedded screenshot and standalone PNG/SVG export, since both
+   share this function).
+3. **That resolution bump surfaced a real, pre-existing bug**: connection
+   lines went invisible in exports. Root cause wasn't the resolution
+   change itself — an uncustomized edge never had an inline stroke color
+   at all; `edgeStyle.ts`'s `edgeVisualProps()` only ever set `style.stroke`
+   when the user had picked a custom color, leaving default edges to rely
+   entirely on `var(--xy-edge-stroke, var(--xy-edge-stroke-default))` from
+   XYFlow's own stylesheet (`.react-flow.dark`'s default, `#3e3e3e`, since
+   this app never overrides it). That renders correctly in a live browser
+   paint but isn't reliably resolved by `html-to-image`'s DOM-clone-based
+   capture. Fixed by always setting `stroke`/`strokeWidth` inline in
+   `edgeVisualProps()`, using the literal `#3e3e3e` XYFlow was already
+   resolving it to — identical on-screen appearance, now robust to export.
+   Self-heals for already-saved projects on next load, since
+   `normalizeEdges()` (called on every project/level load) already
+   reapplies `edgeVisualProps()` to every edge. **Worth remembering for any
+   future export/screenshot work**: anything relying on a CSS custom
+   property for its appearance (rather than an inline style) is a risk
+   specifically for `html-to-image` capture — check for this pattern first
+   if a future export silently drops something that renders fine live.
 
 **A live debugging session during testing, worth remembering** — the user
 placed a WAF, spliced it onto a flow, and reported DREAD scores weren't
@@ -1479,8 +1541,10 @@ already built:
     800-53 SC-7/AC-4 and OWASP ASVS, an app-layer control like WAF) —
     verify the exact control IDs live before shipping, same as every other
     citation added since Release 7.
-- **Release 11 — Reporting & Risk Register Enhancements** (renumbered from
-  10 to make room for the above; scoped, not started):
+- **Release 11 — Reporting & Risk Register Enhancements** ✅ done and
+  verified, all six stages (A-F) — see "Reporting & risk register
+  enhancements (Release 11)" under "What's built" for the full writeup.
+  Original scoping notes below, kept for context:
   - **Inherent vs. residual risk** — once a mitigation lowers a flow's
     DREAD score (Release 6), there's currently no way to see what the
     score *would have been* without it. Show both numbers (inherent =
@@ -1633,7 +1697,7 @@ already built:
    fix.
 6. **Surface a reminder when threats may be stale after diagram changes**
    — found live while diagnosing a user report during Release 11 testing
-   (see "Reporting & risk register enhancements, stages A-E (Release 11)"
+   (see "Reporting & risk register enhancements (Release 11)"
    under "What's built" for the full debugging story). Splicing a
    mitigation onto a flow (or any diagram edit) doesn't auto-refresh
    threats — only clicking "Regenerate Threats" does — so a freshly-spliced

@@ -31,9 +31,9 @@ import { ThreatOverlayContext } from '../canvas/ThreatOverlayContext'
 import { OverlayMenu, type OverlayLayers } from '../canvas/OverlayMenu'
 import { findStencil, type StencilDef, type StencilOption } from '../canvas/stencils'
 import { attachMitigationToCrossingFlows } from '../canvas/mitigationAttach'
-import { normalizeEdges, readLevel, writeLevel, removeSubDiagramSubtree } from '../canvas/subDiagrams'
+import { normalizeEdges, readLevel, writeLevel, removeSubDiagramSubtree, collectAllSubDiagramIds, labelForSubDiagram } from '../canvas/subDiagrams'
 import { autoLayoutDiagram } from '../canvas/autoLayout'
-import { buildReportHtml, type ReportVariant } from '../reports/reportTemplate'
+import { buildReportHtml, type ReportVariant, type ReportSubLevel } from '../reports/reportTemplate'
 import { PastaWorkflow } from '../pasta/PastaWorkflow'
 import { emptyPastaData, normalizePasta } from '../pasta/pastaDefaults'
 import { getDiagramMessages } from '../threats/diagnostics'
@@ -447,13 +447,26 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
   }
 
   async function captureDiagramImage(format: 'png' | 'svg' = 'png'): Promise<string | null> {
-    if (nodes.length === 0) return null
+    // Deliberately does NOT early-return on `nodes.length === 0` — this
+    // function gets called mid-walk during multi-level PDF export (below)
+    // after `setNodes()` has just loaded a *different* level than whatever
+    // this render's `nodes` closure holds, so checking that stale binding
+    // here would be wrong (and an empty sub-diagram producing a blank
+    // background image, rather than silently no-imaging, is the more
+    // correct behavior anyway). The `.react-flow` DOM query is the actual
+    // "is anything mounted" check that matters.
     const el = document.querySelector('.react-flow') as HTMLElement | null
     if (!el) return null
     fitView({ padding: 0.15, duration: 0 })
     await new Promise((r) => setTimeout(r, 150))
     const opts = {
       backgroundColor: '#0f172a',
+      // Captured at 3x the CSS pixel size — the previous 1x (effectively
+      // whatever the OS/display's own device pixel ratio happened to be)
+      // looked too soft to read once zoomed into a PDF or a standalone
+      // export, per direct user feedback. Bigger file, but this app has no
+      // size constraint on exports that would make that a real tradeoff.
+      pixelRatio: 3,
       filter: (node: HTMLElement) => {
         const cls = node.classList
         if (!cls) return true
@@ -467,14 +480,57 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     }
   }
 
+  /** Release 11 — when the project has sub-diagrams, the export walks
+   *  every level (top + every nested sub-diagram, however deep) and
+   *  includes each one as its own "Sub-diagram: X" section with its own
+   *  screenshot and threat table. Only one level's `.react-flow` DOM is
+   *  ever mounted at a time, so capturing each one means briefly loading it
+   *  into the live editing state via the same `loadLevelIntoState` every
+   *  other navigation function uses, then restoring whichever level the
+   *  user was actually on when export started — regardless of how far the
+   *  walk got, including on error (inner try/finally). Projects with no
+   *  sub-diagrams take an untouched fast path: no state mutation, no undo-
+   *  history reset, byte-for-byte the same as before this feature existed.
+   */
   async function handleExport(variant: ReportVariant) {
     if (!project) return
     setExporting(true)
     try {
-      const diagramImage = await captureDiagramImage('png')
-      const html = buildReportHtml({ ...project, diagram: { nodes, edges }, threats }, variant, diagramImage)
-      const safeName = project.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
-      await window.api.exportReportPdf(html, `${safeName}-${variant}.pdf`)
+      const working = writeLevel(project, currentSubDiagramId, nodes, edges, threats)
+      const subDiagramIds = collectAllSubDiagramIds(working)
+
+      if (subDiagramIds.length === 0) {
+        const diagramImage = await captureDiagramImage('png')
+        const html = buildReportHtml({ ...project, diagram: { nodes, edges }, threats }, variant, diagramImage)
+        const safeName = project.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+        await window.api.exportReportPdf(html, `${safeName}-${variant}.pdf`)
+        return
+      }
+
+      const originalSubDiagramId = currentSubDiagramId
+
+      async function captureLevel(subId: string | null) {
+        const level = readLevel(working, subId)
+        loadLevelIntoState(level.diagram, level.threats)
+        await new Promise((r) => setTimeout(r, 60))
+        const image = await captureDiagramImage('png')
+        return { diagram: level.diagram, threats: level.threats, image }
+      }
+
+      try {
+        const top = await captureLevel(null)
+        const subLevels: ReportSubLevel[] = []
+        for (const subId of subDiagramIds) {
+          const captured = await captureLevel(subId)
+          subLevels.push({ label: labelForSubDiagram(working, subId), threats: captured.threats, diagramImage: captured.image })
+        }
+        const html = buildReportHtml({ ...working, diagram: top.diagram, threats: top.threats }, variant, top.image, subLevels)
+        const safeName = project.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+        await window.api.exportReportPdf(html, `${safeName}-${variant}.pdf`)
+      } finally {
+        const original = readLevel(working, originalSubDiagramId)
+        loadLevelIntoState(original.diagram, original.threats)
+      }
     } finally {
       setExporting(false)
     }

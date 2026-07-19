@@ -3,6 +3,17 @@ import { dreadAverage, dreadRiskLevel, dreadTotal, hasMitigationCredit, inherent
 
 export type ReportVariant = 'summary' | 'detailed'
 
+/** One nested sub-diagram's captured content for a report (Release 11) —
+ *  built by the caller (Canvas.tsx), which is the only place that can
+ *  actually navigate levels and screenshot each one, since only one level's
+ *  `.react-flow` DOM is ever mounted at a time. This module stays a pure
+ *  HTML-string builder with no navigation concerns of its own. */
+export interface ReportSubLevel {
+  label: string
+  threats: Threat[]
+  diagramImage: string | null
+}
+
 const CATEGORY_NAMES: Record<StrideCategory, string> = {
   S: 'Spoofing',
   T: 'Tampering',
@@ -42,6 +53,7 @@ function baseStyles(): string {
     body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; color: #1a1a2e; margin: 0; padding: 32px 40px; }
     h1 { font-size: 22px; margin: 0 0 4px; }
     h2 { font-size: 15px; margin: 28px 0 10px; padding-top: 16px; border-top: 1px solid #e2e2ea; }
+    h3.sub-diagram-label { font-size: 12px; margin: 20px 0 6px; color: #4b5563; }
     .meta { color: #6b7280; font-size: 12px; margin-bottom: 20px; }
     .badges { display: flex; gap: 6px; margin: 8px 0 20px; }
     .badge { font-size: 10px; font-weight: 700; letter-spacing: 0.03em; color: #0f766e; background: #ccfbf1; border-radius: 999px; padding: 3px 10px; }
@@ -106,7 +118,42 @@ function threatRows(threats: Threat[], includeDescription: boolean, showDread: b
     .join('')
 }
 
-export function buildReportHtml(project: Project, variant: ReportVariant, diagramImage: string | null): string {
+/** A sub-diagram's screenshot, labeled — grouped together with every other
+ *  diagram (including the top level) near the top of the document rather
+ *  than buried next to its own threat table, per explicit user feedback:
+ *  all diagrams read as a visual overview up front, with detailed tabular
+ *  content (including each sub-diagram's own threats) grouped later like
+ *  an appendix. */
+function subLevelDiagramHtml(level: ReportSubLevel): string {
+  const image = level.diagramImage
+    ? `<img class="diagram-img" src="${level.diagramImage}" alt="${escapeHtml(level.label)}" />`
+    : `<p class="desc">No elements in this sub-diagram.</p>`
+  return `<h3 class="sub-diagram-label">Sub-diagram: ${escapeHtml(level.label)}</h3>${image}`
+}
+
+/** A sub-diagram's own threat table (open-only for the summary variant,
+ *  everything for detailed, same split the top level uses) — rendered
+ *  separately from its diagram image (see subLevelDiagramHtml above).
+ *  Threats are scoped to that level only, per this app's deliberate
+ *  no-rollup design (Release 8) — a sub-diagram's threats never merge into
+ *  the parent's. */
+function subLevelThreatsHtml(level: ReportSubLevel, variant: ReportVariant, dreadEnabled: boolean): string {
+  const shown = variant === 'summary' ? level.threats.filter((t) => t.status === 'open') : level.threats
+  return `
+    <h2>Sub-diagram: ${escapeHtml(level.label)} — Threats</h2>
+    <table>
+      <thead><tr><th>Category</th><th>Threat</th><th>Target</th><th>Status</th>${dreadEnabled ? '<th>Risk</th>' : ''}</tr></thead>
+      <tbody>${threatRows(shown, variant === 'detailed', dreadEnabled) || `<tr><td colspan="${dreadEnabled ? 5 : 4}">No threats.</td></tr>`}</tbody>
+    </table>
+  `
+}
+
+export function buildReportHtml(
+  project: Project,
+  variant: ReportVariant,
+  diagramImage: string | null,
+  subLevels: ReportSubLevel[] = []
+): string {
   const threats = project.threats
   const openThreats = threats.filter((t) => t.status === 'open')
   const byStatus = countBy(threats, (t) => t.status)
@@ -134,9 +181,15 @@ export function buildReportHtml(project: Project, variant: ReportVariant, diagra
     </table>
   `
 
-  const diagramHtml = diagramImage
-    ? `<h2>System Diagram</h2><img class="diagram-img" src="${diagramImage}" alt="Diagram" />`
-    : ''
+  // All diagrams (top level + every sub-diagram) grouped together as one
+  // visual gallery — see subLevelDiagramHtml's comment for why this is
+  // deliberately separate from the per-level threat tables below.
+  const diagramHtml =
+    diagramImage || subLevels.length > 0
+      ? `<h2>${subLevels.length > 0 ? 'System Diagrams' : 'System Diagram'}</h2>${
+          diagramImage ? `<img class="diagram-img" src="${diagramImage}" alt="Diagram" />` : ''
+        }${subLevels.map(subLevelDiagramHtml).join('')}`
+      : ''
 
   if (variant === 'summary') {
     return `<!doctype html><html><head><meta charset="utf-8"><style>${baseStyles()}</style></head><body>
@@ -153,6 +206,7 @@ export function buildReportHtml(project: Project, variant: ReportVariant, diagra
         <thead><tr><th>Category</th><th>Threat</th><th>Target</th><th>Status</th>${project.frameworks.dread ? '<th>Risk</th>' : ''}</tr></thead>
         <tbody>${threatRows(openThreats, false, project.frameworks.dread)}</tbody>
       </table>
+      ${subLevels.map((l) => subLevelThreatsHtml(l, variant, project.frameworks.dread)).join('')}
       <div class="footer">ThreatModeler — Executive Summary Report</div>
     </body></html>`
   }
@@ -193,6 +247,7 @@ export function buildReportHtml(project: Project, variant: ReportVariant, diagra
       <thead><tr><th>Category</th><th>Threat</th><th>Target</th><th>Status</th>${project.frameworks.dread ? '<th>Risk</th>' : ''}</tr></thead>
       <tbody>${threatRows(threats, true, project.frameworks.dread)}</tbody>
     </table>
+    ${subLevels.map((l) => subLevelThreatsHtml(l, variant, project.frameworks.dread)).join('')}
     <div class="footer">ThreatModeler — Detailed Report</div>
   </body></html>`
 }
