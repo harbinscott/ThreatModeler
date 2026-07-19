@@ -35,6 +35,18 @@ obvious from the code alone.
    risk-acceptance sign-off (who/when/review-by date, not just a status +
    freeform note), and pushing open threats to Jira/GitHub Issues as
    tracked work. See "Release roadmap" below.
+   - A new **Release 10 — Reporting & Risk Register Enhancements** was
+     scoped (not built) this session after the user asked for a "review
+     everything as a professional risk assessor" pass: inherent-vs-
+     residual DREAD scores, sub-diagrams included in PDF export with a
+     header per level, a Threats risk-register table view, CSV export,
+     compliance/DREAD-risk filters on the Threats tab, and standalone
+     diagram PNG/SVG export. Inserted between the existing Release 9 and
+     the stretch release, which is renumbered to Release 11 as a result —
+     see "Release roadmap" for the full scoping notes, including one real
+     implementation wrinkle already flagged (sub-diagram PDF capture needs
+     to drive the Release 8 navigation functions programmatically, since
+     only one level's diagram DOM is ever mounted at a time).
 3. One unrelated bug reported during this session, logged but **not yet
    fixed** per explicit user request (backlog only): `ColorSwatchPicker.tsx`'s
    "Recent" custom colors all show the same color instead of a history of
@@ -1052,10 +1064,60 @@ already built:
   restore any of them. Capped at the last 5-10 saves to avoid unbounded
   project-file growth, with a settings override to raise the cap. Also:
   risk-acceptance sign-off (who/when/review-by date, not just a status +
-  freeform note), push open threats to Jira/GitHub Issues as tracked work.
-- **Release 10 — Stretch** (original Phase 7 ideas, still valid): custom
+  freeform note), push open threats to Jira/GitHub Issues as tracked work
+  — threat ownership + a due date would pair naturally with this piece
+  (not yet scoped as its own item, but worth considering alongside it
+  rather than as a separate release).
+- **Release 10 — Reporting & Risk Register Enhancements** *(scoped this
+  session from a "review everything as a professional risk assessor" ask;
+  not started)*:
+  - **Inherent vs. residual risk** — once a mitigation lowers a flow's
+    DREAD score (Release 6), there's currently no way to see what the
+    score *would have been* without it. Show both numbers (inherent =
+    everything except `mitigationContributions()`'s negative entries,
+    residual = the full current score) in the Threats tab detail view and
+    in both PDF export variants — likely the single highest-value item
+    here, and builds directly on the existing `DreadContribution`
+    architecture rather than needing a new one.
+  - **Sub-diagrams in PDF export, each with a clear header identifying
+    what it's showing** (e.g. "Sub-diagram: Checkout Service") — explicit
+    user ask. Real implementation wrinkle: `captureDiagramImage()`
+    currently screenshots whichever level's `.react-flow` DOM is *live*,
+    but only one level is ever mounted at a time (same reason a
+    standalone "diagram screenshot in the Threats panel" was skipped
+    back in an earlier session). The fix should be straightforward now
+    that Release 8 built real navigation infrastructure though: drive
+    `navigateToLevel()` programmatically for each `subDiagramId` found
+    while building the export, capturing after each one and restoring the
+    user's original breadcrumb position when done, rather than needing a
+    parallel off-screen render.
+  - **Risk register / Threats table view** — the Table tab already does
+    this for Elements/Flows; Threats has no equivalent sortable/filterable
+    table (DREAD score, category, status, compliance tags, target) despite
+    the data already existing.
+  - **CSV export of threats** — most GRC/audit workflows live in
+    spreadsheets, not just PDFs; a raw structured export feeds directly
+    into an existing risk register.
+  - **Compliance-tag and DREAD-risk-level filters on the Threats tab** —
+    status/category/type filters exist, "show me everything open and
+    Critical" or "show me everything PCI-scoped" doesn't, even though both
+    are already computed elsewhere in the app.
+  - **Standalone diagram export (PNG/SVG)** — `captureDiagramImage()`
+    already does the capture internally for PDF export; exposing it as a
+    direct export option is small additional work.
+- **Release 11 — Stretch** (original Phase 7 ideas, still valid, renumbered
+  from Release 10 to make room for the reporting work above): custom
   user-defined STRIDE rules, IaC import (Terraform/CloudFormation →
-  diagram elements), "crown jewel" asset tagging for risk prioritization.
+  diagram elements), "crown jewel" asset tagging for risk prioritization
+  (would also feed DREAD scoring the same way compliance tags do — a
+  natural extension of the existing `complianceContributions()` pattern).
+  Also noted as worth considering for a future release, not yet scoped:
+  attack-path analysis (the diagram is already a graph, and mitigation
+  nodes already sit in-line on flows — tracing the shortest path from an
+  untrusted External Entity to a sensitive Data Store and showing what's
+  mitigated along the way could be a genuinely differentiated feature),
+  and lightweight reviewer comments per threat (distinct from resolution
+  notes, for async review cycles short of full multi-user editing).
 
 ## Backlog (explicitly deferred, in rough priority order per most recent conversation)
 
