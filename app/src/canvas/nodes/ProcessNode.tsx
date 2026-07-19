@@ -4,6 +4,7 @@ import { EditableLabel } from '../EditableLabel'
 import { resolveNodeStyle, withRiskRing } from '../nodeColor'
 import { ThreatBadge } from '../ThreatBadge'
 import { ComplianceBadge } from '../ComplianceBadge'
+import { SubDiagramBadge } from '../SubDiagramBadge'
 import { useThreatOverlay } from '../ThreatOverlayContext'
 import type { DiagramNode } from '../../types/project'
 
@@ -18,6 +19,7 @@ export function ProcessNode({ id, data, selected }: NodeProps<DiagramNode>) {
       <EditableLabel nodeId={id} value={data.label} />
       <ThreatBadge targetId={id} />
       <ComplianceBadge targetId={id} />
+      <SubDiagramBadge targetId={id} />
     </div>
   )
 }

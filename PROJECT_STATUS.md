@@ -8,50 +8,50 @@ obvious from the code alone.
 
 ## Resume here (updated end of this session)
 
-1. **Release 7 — Threat Intelligence Grounding — done and fully verified.**
-   See "Threat intelligence grounding (Release 7)" under "What's built"
+1. **Release 8, part 1 — Sub-diagrams (DFD leveling) — done and fully
+   verified.** See "Sub-diagrams (Release 8, part 1)" under "What's built"
    below for the full writeup. Highlights:
-   - New `src/threats/threatIntel.ts`: curated CAPEC/CWE citations per
-     STRIDE category (plus a few signal-based extras — boundary-crossing,
-     high-priority sensitive data, credential-related, mitigation's own
-     threats), and a mitigation-stencil-type -> control-framework mapping
-     (NIST 800-53/CIS Controls v8/OWASP ASVS). Nothing persisted — both are
-     pure functions computed on demand, same "derived, not stored" posture
-     as the threat overlay badges.
-   - Surfaced in the Threats tab detail panel only (per user scope
-     decision): a "References" block on every threat, a "Compensating
-     controls" block on a mitigation node's own threats and on any flow
-     sourced from one.
-   - **Every single id (17 CAPEC/CWE + 5 NIST 800-53 + 2 CIS Controls + 1
-     OWASP ASVS) was verified live against the actual MITRE/NIST/CIS/OWASP
-     sources before shipping**, not just recalled — this caught one real
-     staleness issue: OWASP ASVS renumbered its chapters between versions,
-     "V5: Validation, Sanitization and Encoding" in 4.0 is "V1: Encoding
-     and Sanitization" in the current 5.0, so the WAF entry now cites the
-     version explicitly (`OWASP ASVS v5.0 V1`). Both blocks still carry a
-     visible disclaimer (tooltip) that this is a curated starting point for
-     a human reviewer, not a substitute for checking the current
-     publications — frameworks keep evolving after this was written.
-   - First outbound links in the app (citation chips open the MITRE page) —
-     added a `shell.openExternal` handler in `electron/main.js` so they
-     open in the system browser instead of navigating the Electron window.
-2. **Next up: Release 8 — Diagram scalability** (drill-down/sub-diagrams,
-   auto-layout via dagre/elkjs). See "Release roadmap" below.
-3. Release 6 (mitigation elements) is done and fully verified — see "What's
-   built" below for the full writeup, not repeated here now that Release 7
-   is the latest work.
-4. Two more items came in from Release 3 testing and were folded into the
+   - Process nodes only (Data Stores/External Entities/Trust Boundaries/
+     Mitigations are terminal in DFD methodology) can drill into a nested
+     sub-diagram via a new Inspector button, with a breadcrumb strip for
+     navigating back up. Threats/DREAD/undo history are scoped per level —
+     explicitly no rollup into the parent (a summary badge is the only
+     cross-level signal), per user scope decision.
+   - New top-left canvas badge on a Process with a sub-diagram (gray, or
+     tiered amber/coral/red if it has open threats inside) — click to jump
+     straight in. Added after initial testing when the user asked for a
+     visual indicator.
+   - Deleting a Process that owns a sub-diagram now warns first (the nested
+     sub-diagram is destroyed too) — also added after initial testing, a
+     real data-safety gap the user caught before it bit anyone.
+2. **Next up: Release 8, part 2 — Auto-layout** (a "tidy up" button using
+   dagre/elkjs to reflow node positions). Small, self-contained, completes
+   Release 8. See "Release roadmap" below.
+3. One unrelated bug reported during this session, logged but **not yet
+   fixed** per explicit user request (backlog only): `ColorSwatchPicker.tsx`'s
+   "Recent" custom colors all show the same color instead of a history of
+   distinct ones after a single custom pick. Root cause not confirmed — the
+   likely culprit is `<input type="color">`'s `onChange` (which React maps to
+   the native `input` event, firing continuously during a live drag in the
+   OS color picker) calling `addRecentColor()` many times per pick, but
+   `color.ts`'s dedup logic looks correct in isolation on a static read, so
+   this needs interactive debugging before a fix, not a guess. See Backlog
+   below.
+5. Releases 6 (mitigation elements) and 7 (threat intelligence grounding)
+   are done and fully verified — see "What's built" below for the full
+   writeups, not repeated here now that Release 8 part 1 is the latest work.
+6. Two more items came in from Release 3 testing and were folded into the
    roadmap rather than built immediately: an unsaved-changes guard (warn
    before navigating away from an edited-but-unsaved diagram) — Backlog
    item 1 below, small and a real data-safety gap — and a capped
    version-history/rollback feature, which landed in Release 9 (SDLC
    integration) since it already covered related ground
    ("versioning/diffing between saves"). Neither has been started.
-5. Two small backlog items remain from earlier sessions, both low priority,
+7. Two small backlog items remain from earlier sessions, both low priority,
    neither blocking: trust boundary shape editing *after* creation
    (currently creation-time only), and further parallel-edge endpoint
    visual polish. See Backlog below.
-6. Everything is committed and pushed to
+8. Everything is committed and pushed to
    `https://github.com/harbinscott/ThreatModeler` (`main` branch) as of the
    end of this session.
 
@@ -507,104 +507,72 @@ entities) — found via the same investigation, since the description text
 had only ever been wired up for Information Disclosure even after
 Repudiation's *score* got the compliance treatment in the round before.
 
-**Mitigation elements (Release 6)** — new `mitigation` `ElementType`
-(`types/project.ts`), stencils in `stencils.ts` (Generic Mitigation Control,
-Firewall, WAF, IDS/IPS — defaults pre-check relevant properties, e.g.
-Firewall sets `blocksUnauthorizedTraffic: true`). Security fields
-(`mstmAttributes.ts`'s `mitigationSecurityFields()`): `blocksUnauthorized
-Traffic`, `inspectsPayload`, `logsTraffic`, `rulesUpToDate` — deliberately no
-"terminates TLS" field, since TLS termination splits trust rather than
-reducing risk and wouldn't have a clean scoring direction. `Inspector.tsx`
-needed **no changes** to show these — `NodeInspector` already reads
-`securityFieldsFor(node.data.elementType)` and `stencilsForType(...)`
-generically, so a new element type's Type picker and Security Properties
-section just work once the type exists.
+**Sub-diagrams (Release 8, part 1)** — DFD leveling: a Process node can drill
+into its own nested diagram. New `SubDiagram` type (`types/project.ts`,
+`{id, diagram, threats}`) and `Project.subDiagrams?: Record<string,
+SubDiagram>` — stored *flat*, keyed by id, not nested inside the owning
+node, so arbitrary depth/tree shape doesn't need recursive typing and
+navigating levels is a map lookup rather than a tree walk. New
+`DiagramNodeData.subDiagramId?` (Process only — Data Stores/External
+Entities/Trust Boundaries/Mitigations are terminal in DFD methodology, so
+the "Open sub-diagram" Inspector button is gated on `elementType ===
+'process'`).
 
-`MitigationNode.tsx` renders a green hexagon (`clip-path: polygon(...)`) —
-**a real bug found and fixed mid-release**: `clip-path` clips *all* painted
-content of the element it's on, including overflowing absolutely-positioned
-children, not just the element's own box. Putting it directly on the same
-div as `FourWayHandles` silently chopped the connection handles off (worst
-at the left/right points, where the hexagon narrows to a single vertex),
-making the node effectively undraggable-into — user reported this as "auto
-attach isn't working" before realizing (correctly) it was actually a
-different, not-yet-built feature they were also expecting. Fixed by giving
-the hexagon its own `inset:0` absolutely-positioned inner layer, leaving
-handles/label/badges as unclipped children of the outer node div — same
-split `TrustBoundaryNode.tsx` already used for its own shape layer. The
-label (`EditableLabel`, a plain non-positioned `<span>`) needed an explicit
-`position:relative; z-index:1` (`.dfd-node--mitigation__label`) since CSS's
-default painting order puts non-positioned content *behind* any absolutely-
-positioned sibling regardless of DOM order — without it the hexagon's fill
-would've painted over the label text.
+`src/canvas/subDiagrams.ts`: `readLevel(project, subDiagramId)` /
+`writeLevel(project, subDiagramId, nodes, edges, threats)` — the two pure
+functions everything else is built on. Canvas.tsx's live `nodes`/`edges`/
+`threats` state always represents *whichever level is currently active*
+(top or nested); a `breadcrumb: {id, label}[]` state array tracks the path
+down from the top level (empty = top level). Every navigation function
+(`drillIntoSubDiagram`, `navigateToLevel`/`goToTopLevel`/
+`goToBreadcrumbIndex`) follows the same shape: commit the level being left
+via `writeLevel` first, *then* load the target level via a new
+`loadLevelIntoState()` helper — getting this ordering backwards (patching
+a node's `subDiagramId` via `updateNode` and reading the `nodes` state
+variable in the same call) would silently commit the pre-patch array, since
+React state updates aren't synchronous; `drillIntoSubDiagram` builds the
+patched array explicitly rather than relying on `updateNode` + immediate
+reread. `removeSubDiagramSubtree()` walks a sub-diagram's own Process nodes
+for further-nested `subDiagramId`s recursively, so deleting an owning node
+cleans up the whole subtree instead of leaving orphaned `project.subDiagrams`
+entries.
 
-Auto-attach splicing (`src/canvas/mitigationAttach.ts`,
-`attachMitigationToCrossingFlows()`): fires from a new `onNodeDragStop`
-handler in `Canvas.tsx` on every drag-stop of a mitigation node (not just
-first placement). For each existing edge not already touching the dragged
-node, computes the point-to-segment distance from the node's center to the
-line between its source/target node centers; any edge within
-`ATTACH_THRESHOLD_PX` (40px) is spliced — deliberately *every* matching
-edge, not just the closest, so a node dropped where multiple flows
-converge/diverge (fan-in/fan-out) absorbs all of them from one drop, per the
-roadmap's "including fan-in from multiple sources" requirement. Each spliced
-edge is replaced by two new ones (source→mitigation, mitigation→target),
-each carrying its own independent copy of the original edge's full `data`
-(line style/color/label/attributes/customFields/complianceTags/
-complianceNotes) — copied, not shared, so editing one segment's compliance
-tags later can't mutate the other's — with visual props recomputed fresh via
-`edgeVisualProps()` rather than copied, matching every other edge-creating
-function in the codebase. Per-node opt-out:
-`DiagramNodeData.mitigationAutoAttach` (default true, i.e. enabled unless
-explicitly set `false`), a checkbox in `Inspector.tsx` gated on
-`elementType === 'mitigation'` — added after the user asked for an escape
-hatch, and its label was shortened to "Auto-Attach Connections" with a new
-`.inspector__field--checkbox` row-layout CSS modifier after the first
-version (long label stacked above a lone checkbox, the default layout every
-other `.inspector__field` uses) looked wrong.
+Undo/redo (`useDiagramHistory`) resets at every level boundary
+(`loadLevelIntoState` calls `history.reset()` synchronously off the
+just-loaded arrays, with `isRestoringRef` suppressing the debounced-record
+effect from immediately overwriting that reset) — necessary, not just
+tidy: without it, undoing after switching levels would restore a *different
+level's* nodes/edges into the current view, since the old stack still held
+snapshots from whatever level was active when they were recorded. `handleSave`
+commits the current level into the project object before sending it to
+`window.api.saveProject`, so every level (not just whichever one you're
+looking at) is written together in one save.
 
-STRIDE (`ruleEngine.ts`): mitigation nodes generate all 6 categories via a
-new `mitigationDescription()` — a control is a target in its own right (can
-its config be tampered with, can it be knocked offline to fail open, can an
-attacker reach its management plane), not just something that protects
-other targets. `rulesUpToDate === false` adds a caution sentence to its own
-Tampering threat, `logsTraffic === false` to its own Repudiation threat.
-Separately, any data-flow edge whose *source* is a mitigation node gets a
-contextual sentence on its Tampering threat noting the traffic already
-passed through a declared control — phrased as something to verify, not as
-"resolved," consistent with never having the tool claim a threat is closed
-without human review.
+**Deliberately no rollup**, per explicit user scope decision: threats/DREAD
+scores/undo history are scoped to whichever level generated them, never
+merged into the parent's Threats tab or PDF export. **Known limitation**:
+exporting a PDF from the top level won't include sub-diagram detail —
+consistent with the no-rollup decision, not a bug, but worth remembering if
+it ever needs revisiting.
 
-DREAD (`dreadEngine.ts`): two additions, kept conceptually separate.
-`attributeContributions()` gained mitigation-specific *penalties* on the
-control's own threats (stale rules → +2 exploitability on its Tampering; no
-logging → +2 damage on its Repudiation) — same mechanism every other
-attribute-driven adjustment already uses. New `mitigationContributions()` is
-the first source of **negative** contributions in the app: for an edge
-threat whose category is Tampering and whose source node is a mitigation,
-`blocksUnauthorizedTraffic`/`inspectsPayload` each subtract from
-exploitability/damage — gated on `rulesUpToDate !== false` so a stale
-control doesn't get credit for protection it may no longer reliably
-provide. Deliberately restricted to Tampering only (not Spoofing/
-Information Disclosure/DoS) — same "no clean statable mechanism, so no
-blanket bump" bar Release 5's compliance scoring used — and never
-suppresses or auto-resolves the threat itself, only lowers the starting
-suggestion a human still has to review. The existing sum-all-then-
-clamp-once architecture (`suggestDreadScore`) handles negative amounts
-correctly by construction — no changes needed there, confirming the
-Release 5 note that the `DreadContribution` shape was already built to
-support this.
-
-PASTA (`PastaWorkflow.tsx`): stage 3's "From your diagram" summary gained a
-"Mitigation controls" row (`decompositionCounts.mitigation`); stages 4/7
-needed no changes since they already pull generically from the STRIDE
-threats list / DREAD scores rather than being element-type-aware
-themselves.
-
-`diagnostics.ts`'s "flow doesn't touch a Process" message was widened to
-also accept a mitigation as either endpoint — a flow entirely between, say,
-a Data Store and a mitigation is normal now that mitigations exist, and
-was a false positive under the original process-only check.
+Two additions after initial live testing (user: "that looks good" on the
+core navigation, then two follow-up asks): a **visual indicator** —
+`SubDiagramBadge.tsx`, top-left corner of a Process node (the one spot
+`ThreatBadge`'s top-right and `ComplianceBadge`'s bottom-left leave free),
+gray by default or tiered amber/coral/red (via `ThreatBadge.tsx`'s
+`tierColor()`, exported for reuse) when the sub-diagram has open threats —
+clicking it drills straight in via a new `onOpenSubDiagram` callback added
+to `ThreatOverlayContext` alongside the existing `onViewThreat`, and a
+`subDiagramOpenThreatCountByTarget` map computed in `Canvas.tsx` (present
+as a key only for Process nodes that own a sub-diagram, so "badge shows at
+all" is `map.has(id)`, not `count > 0`, letting a sub-diagram with zero
+open threats still show the neutral badge). And a **delete confirmation** —
+`deleteNodeById` and `deleteSelection` in `Canvas.tsx` now call
+`window.confirm()` before deleting a Process that owns a sub-diagram,
+warning that the nested sub-diagram will be permanently deleted too, and
+abort the whole delete if the user cancels — a real data-safety gap the
+user caught before it bit anyone, same category of fix as Release 3's
+unsaved-changes-guard backlog item.
 
 **Threat intelligence grounding (Release 7)** — new
 `src/threats/threatIntel.ts`, two pure/unpersisted functions (same "derived,
@@ -1047,9 +1015,11 @@ already built:
   "Threat intelligence grounding (Release 7)" under "What's built" for the
   full writeup, including the live verification pass against MITRE/NIST/
   CIS/OWASP sources that caught a real ASVS chapter-renumbering issue.
-- **Release 8 — Diagram scalability**: drill-down/sub-diagrams (context
-  diagram expanding into per-service detail), auto-layout (dagre/elkjs "tidy
-  up" button).
+- **Release 8 — Diagram scalability**: part 1 (drill-down/sub-diagrams) ✅
+  done and verified this session — see "Sub-diagrams (Release 8, part 1)"
+  under "What's built". Part 2 (auto-layout, a dagre/elkjs "tidy up" button
+  to reflow node positions) not started yet — small, self-contained,
+  completes the release.
 - **Release 9 — SDLC integration**: threat model versioning/diffing between
   saves — the user's ask, surfaced testing Release 3, was specific: a
   revision counter next to the Canvas back-arrow that increments on every
@@ -1083,6 +1053,24 @@ already built:
    once (`ENDPOINT_SPACING`/`PARALLEL_SPACING` in `FloatingEdge.tsx`) but the
    user still feels it needs a proper design pass, not just bigger numbers.
    Low priority.
+4. **Recent custom colors all show the same color** — user-reported (with
+   screenshot) during Release 8 testing: picking one custom color via the
+   native color-wheel input makes all 5 "Recent" swatch boxes in
+   `ColorSwatchPicker.tsx` show that same color, instead of a history of up
+   to 5 distinct recently-used ones. Explicitly logged as backlog-only, not
+   fixed, per user request ("doesn't affect functionality"). Root cause
+   **not confirmed** — `color.ts`'s `addRecentColor()` dedup logic reads
+   correctly on a static pass (filters the new hex out of existing entries,
+   prepends it, slices to 5 — shouldn't be able to produce 5 identical
+   entries from that alone). Leading hypothesis: `<input type="color">`'s
+   `onChange` in `ColorSwatchPicker.tsx` — which React wires to the native
+   `input` event, not `change` — fires continuously during a live drag
+   inside the OS color picker (not just once on confirm), so a single pick
+   gesture could call `pickCustom()` → `addRecentColor()` many times; not
+   verified against an actual repro yet, so treat as a starting point for
+   debugging, not a diagnosis. Needs interactive testing (e.g. temporarily
+   logging each `onChange` firing during a real pick) before attempting a
+   fix.
 
 Decided against / explicitly skipped:
 - **Threat diagram screenshot** in the Threats detail panel — would have

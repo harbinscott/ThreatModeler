@@ -14,8 +14,10 @@ const CATEGORY_COLOR: Record<string, string> = {
 
 /** Open-threat count on this node/edge -> badge color. Simple tiering
  *  independent of DREAD (which may not be enabled on this project), so the
- *  overlay always has something meaningful to show. */
-function tierColor(count: number): string {
+ *  overlay always has something meaningful to show. Exported for
+ *  SubDiagramBadge, which reuses the same tiering for a sub-diagram's open
+ *  threat count. */
+export function tierColor(count: number): string {
   if (count >= 6) return '#ef4444'
   if (count >= 3) return '#fb7185'
   return '#f59e0b'

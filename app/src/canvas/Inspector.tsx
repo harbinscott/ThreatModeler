@@ -28,6 +28,9 @@ interface InspectorProps {
   onUpdateEdge: (id: string, patch: Partial<DiagramEdge['data']>) => void
   onReverseEdge: (id: string) => void
   onSaveCustomStencil: (stencil: CustomStencil) => void
+  /** Process nodes only — drills into (creating first if needed) the node's
+   *  nested sub-diagram. See Canvas.tsx's drillIntoSubDiagram. */
+  onOpenSubDiagram: (node: DiagramNode) => void
   onDelete: () => void
   onClose: () => void
   width?: number
@@ -448,11 +451,13 @@ function NodeInspector({
   customStencils,
   onUpdate,
   onSaveCustomStencil,
+  onOpenSubDiagram,
 }: {
   node: DiagramNode
   customStencils: CustomStencil[]
   onUpdate: (id: string, patch: Partial<DiagramNode['data']>) => void
   onSaveCustomStencil: (stencil: CustomStencil) => void
+  onOpenSubDiagram: (node: DiagramNode) => void
 }) {
   const stencilOptions = stencilsForType(node.data.elementType, customStencils)
   const comboboxOptions: ComboboxOption[] = stencilOptions.map((o) => ({
@@ -549,6 +554,17 @@ function NodeInspector({
       </label>
 
       <NodeColorField colors={node.data.colors} onChange={(colors) => onUpdate(node.id, { colors })} />
+
+      {node.data.elementType === 'process' && (
+        <button
+          type="button"
+          className="btn"
+          onClick={() => onOpenSubDiagram(node)}
+          title="DFD leveling — decompose this process into its own detailed diagram. Threats/DREAD scores inside it stay scoped to that level."
+        >
+          {node.data.subDiagramId ? 'Open sub-diagram' : '+ Create sub-diagram'}
+        </button>
+      )}
 
       {node.data.elementType === 'trust-boundary' && (
         <label className="inspector__field">
@@ -755,6 +771,7 @@ export function Inspector({
   onUpdateEdge,
   onReverseEdge,
   onSaveCustomStencil,
+  onOpenSubDiagram,
   onDelete,
   onClose,
   width,
@@ -776,6 +793,7 @@ export function Inspector({
           customStencils={customStencils}
           onUpdate={onUpdateNode}
           onSaveCustomStencil={onSaveCustomStencil}
+          onOpenSubDiagram={onOpenSubDiagram}
         />
       ) : (
         <EdgeInspector edge={selection.edge} onUpdate={onUpdateEdge} onReverse={onReverseEdge} />

@@ -118,6 +118,12 @@ export interface DiagramNodeData extends Record<string, unknown> {
    *  means enabled (the default); explicit `false` opts a specific mitigation
    *  out, for one the user wants positioned near a path without absorbing it. */
   mitigationAutoAttach?: boolean
+  /** Process nodes only — id of a nested "drill-down" diagram in
+   *  `Project.subDiagrams` (DFD leveling: this Process decomposed into its
+   *  own detailed flow). Not available on other element types since Data
+   *  Stores/External Entities/Trust Boundaries/Mitigations are terminal in
+   *  DFD methodology. */
+  subDiagramId?: string
 }
 
 export type LineStyle = 'solid' | 'dashed' | 'dotted'
@@ -208,6 +214,20 @@ export interface ThreatModelInfo {
   externalDependencies: string
 }
 
+/** A nested "drill-down" diagram owned by a single Process node (Release 8).
+ *  Stored flat in `Project.subDiagrams` keyed by id — not nested inside the
+ *  owning node — so arbitrary depth/tree shape doesn't need recursive
+ *  typing, and navigating levels is a map lookup rather than a tree walk.
+ *  Threats/DREAD scores are scoped to this level only, deliberately not
+ *  rolled up into the parent's Threats tab or PDF export (a summary badge
+ *  on the owning node, not yet built, is the only planned cross-level
+ *  signal) — avoids double-counting between a summary model and its detail. */
+export interface SubDiagram {
+  id: string
+  diagram: Diagram
+  threats: Threat[]
+}
+
 export interface Project {
   id: string
   name: string
@@ -221,6 +241,8 @@ export interface Project {
   /** User-saved element presets ("save as custom element"), selectable from
    *  the Type picker in the Inspector alongside the built-in stencils. */
   customStencils?: CustomStencil[]
+  /** Nested drill-down diagrams, keyed by id — see `SubDiagram`. */
+  subDiagrams?: Record<string, SubDiagram>
   createdAt: string
   updatedAt: string
 }

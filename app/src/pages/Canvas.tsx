@@ -30,6 +30,7 @@ import { ThreatOverlayContext } from '../canvas/ThreatOverlayContext'
 import { OverlayMenu, type OverlayLayers } from '../canvas/OverlayMenu'
 import { findStencil, type StencilDef, type StencilOption } from '../canvas/stencils'
 import { attachMitigationToCrossingFlows } from '../canvas/mitigationAttach'
+import { normalizeEdges, readLevel, writeLevel, removeSubDiagramSubtree } from '../canvas/subDiagrams'
 import { buildReportHtml, type ReportVariant } from '../reports/reportTemplate'
 import { PastaWorkflow } from '../pasta/PastaWorkflow'
 import { emptyPastaData, normalizePasta } from '../pasta/pastaDefaults'
@@ -46,6 +47,7 @@ import {
   IconNotes,
   IconDeviceFloppy,
   IconChevronDown,
+  IconChevronRight,
 } from '@tabler/icons-react'
 import { SHAPE_LABELS, SHAPE_ICONS } from '../canvas/shapeMeta'
 import '../canvas/canvas.css'
@@ -130,6 +132,14 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
   const [showInfoDialog, setShowInfoDialog] = useState(false)
   const [showMessagesDialog, setShowMessagesDialog] = useState(false)
   const [showNotesDialog, setShowNotesDialog] = useState(false)
+  // Sub-diagram navigation (Release 8): breadcrumb[] is the path from the
+  // top-level diagram down to whichever level is currently loaded into
+  // nodes/edges/threats above — empty means the top level. Only the last
+  // segment's id is load-bearing (currentSubDiagramId below); the rest is
+  // kept for the breadcrumb strip and for jumping back to an intermediate
+  // level by clicking it.
+  const [breadcrumb, setBreadcrumb] = useState<{ id: string; label: string }[]>([])
+  const currentSubDiagramId = breadcrumb.length > 0 ? breadcrumb[breadcrumb.length - 1].id : null
   const { size: inspectorWidth, startDrag: startInspectorResize } = useResizablePanel({
     axis: 'x',
     initial: 280,
@@ -154,14 +164,10 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
       setNodes(p.diagram.nodes)
       // Normalize edges saved before line-style/arrow/color logic existed —
       // without this, legacy edges render with no marker at all.
-      setEdges(
-        p.diagram.edges.map((e) => {
-          const data = { ...DEFAULT_EDGE_DATA, ...e.data }
-          return { ...e, data, label: data.label, ...edgeVisualProps(data) }
-        })
-      )
+      setEdges(normalizeEdges(p.diagram.edges))
       setThreats(p.threats)
       setPasta(normalizePasta(p.pasta))
+      setBreadcrumb([])
       setLoading(false)
     })
   }, [projectId, setNodes, setEdges])
@@ -299,25 +305,92 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
   }
 
   function deleteNodeById(id: string) {
+    const target = nodes.find((n) => n.id === id)
+    if (target?.data.subDiagramId) {
+      const proceed = window.confirm(
+        `"${target.data.label}" contains a sub-diagram. Deleting it will also permanently delete everything inside that sub-diagram. Continue?`
+      )
+      if (!proceed) return
+    }
     setNodes((nds) => nds.filter((n) => n.id !== id))
     // Cascade-delete: an edge left pointing at a node that no longer exists
     // would be an orphan React Flow can't render.
     setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id))
+    if (target?.data.subDiagramId) {
+      setProject((p) => (p ? removeSubDiagramSubtree(p, target.data.subDiagramId!) : p))
+    }
   }
 
   function deleteEdgeById(id: string) {
     setEdges((eds) => eds.filter((e) => e.id !== id))
   }
 
+  // Loads a diagram/threats pair into the live editing state and resets
+  // undo history to that level's baseline — reused by every navigation
+  // function below. isRestoringRef suppresses the debounced-record effect
+  // from pushing this load itself onto the just-reset undo stack; history
+  // .reset() runs synchronously off the passed-in arrays so the baseline is
+  // correct regardless of when React actually commits the state updates.
+  function loadLevelIntoState(diagram: { nodes: DiagramNode[]; edges: DiagramEdge[] }, levelThreats: Threat[]) {
+    const normalized = normalizeEdges(diagram.edges)
+    isRestoringRef.current = true
+    setNodes(diagram.nodes)
+    setEdges(normalized)
+    setThreats(levelThreats)
+    history.reset(diagram.nodes, normalized)
+  }
+
+  // Commits the level being left (top or nested) into `project`, then loads
+  // the target breadcrumb path's level. Used for both "jump to an
+  // intermediate breadcrumb" and "go back to the top-level diagram" (pass []).
+  function navigateToLevel(targetBreadcrumb: { id: string; label: string }[]) {
+    if (!project) return
+    const committed = writeLevel(project, currentSubDiagramId, nodes, edges, threats)
+    setProject(committed)
+    const targetId = targetBreadcrumb.length > 0 ? targetBreadcrumb[targetBreadcrumb.length - 1].id : null
+    const level = readLevel(committed, targetId)
+    loadLevelIntoState(level.diagram, level.threats)
+    setBreadcrumb(targetBreadcrumb)
+  }
+
+  function goToTopLevel() {
+    navigateToLevel([])
+  }
+
+  function goToBreadcrumbIndex(i: number) {
+    navigateToLevel(breadcrumb.slice(0, i + 1))
+  }
+
+  // Drills into a Process node's sub-diagram, creating an empty one first if
+  // it doesn't have one yet. Patches the owning node's subDiagramId into the
+  // level being left *before* committing it (not via updateNode + separate
+  // commit — state updates aren't synchronous, so a naive two-step version
+  // would commit the pre-patch nodes array).
+  function drillIntoSubDiagram(node: DiagramNode) {
+    if (!project) return
+    const existingId = node.data.subDiagramId
+    const targetId = existingId ?? crypto.randomUUID()
+    const currentNodes = existingId
+      ? nodes
+      : nodes.map((n) => (n.id === node.id ? { ...n, data: { ...n.data, subDiagramId: targetId } } : n))
+    let committed = writeLevel(project, currentSubDiagramId, currentNodes, edges, threats)
+    if (!existingId) {
+      committed = {
+        ...committed,
+        subDiagrams: { ...(committed.subDiagrams ?? {}), [targetId]: { id: targetId, diagram: { nodes: [], edges: [] }, threats: [] } },
+      }
+    }
+    setProject(committed)
+    const level = readLevel(committed, targetId)
+    loadLevelIntoState(level.diagram, level.threats)
+    setBreadcrumb((bc) => [...bc, { id: targetId, label: node.data.label }])
+  }
+
   async function handleSave() {
     if (!project) return
     setSaveState('saving')
-    const updated = await window.api.saveProject({
-      ...project,
-      diagram: { nodes, edges },
-      threats,
-      pasta,
-    })
+    const committed = writeLevel(project, currentSubDiagramId, nodes, edges, threats)
+    const updated = await window.api.saveProject({ ...committed, pasta })
     setProject(updated)
     setSaveState('saved')
     setTimeout(() => setSaveState('idle'), 1500)
@@ -450,6 +523,26 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     return map
   }, [nodes, edges])
 
+  // Process-node id -> open threat count inside its sub-diagram, for the
+  // canvas SubDiagramBadge (Release 8). Keyed only for Process nodes that
+  // actually own one — badge presence is "map has this key", not "count > 0",
+  // so a sub-diagram with zero open threats still shows the indicator.
+  const subDiagramOpenThreatCountByTarget = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const n of nodes) {
+      if (n.data.elementType === 'process' && n.data.subDiagramId) {
+        const sub = project?.subDiagrams?.[n.data.subDiagramId]
+        map.set(n.id, sub ? sub.threats.filter((t) => t.status === 'open').length : 0)
+      }
+    }
+    return map
+  }, [nodes, project])
+
+  function openSubDiagramFromBadge(nodeId: string) {
+    const node = nodes.find((n) => n.id === nodeId)
+    if (node) drillIntoSubDiagram(node)
+  }
+
   function viewThreatOnCanvas(id: string) {
     setFocusThreatId(id)
     setView('threats')
@@ -515,12 +608,26 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
 
   function deleteSelection() {
     if (selectedNodes.length === 0 && selectedEdges.length === 0) return
+    const withSubDiagrams = selectedNodes.filter((n) => n.data.subDiagramId)
+    if (withSubDiagrams.length > 0) {
+      const names = withSubDiagrams.map((n) => `"${n.data.label}"`).join(', ')
+      const proceed = window.confirm(
+        `${names} contain${withSubDiagrams.length === 1 ? 's' : ''} a sub-diagram. Deleting ${
+          withSubDiagrams.length === 1 ? 'it' : 'them'
+        } will also permanently delete everything inside ${withSubDiagrams.length === 1 ? 'that sub-diagram' : 'those sub-diagrams'}. Continue?`
+      )
+      if (!proceed) return
+    }
     const deletedNodeIds = new Set(selectedNodes.map((n) => n.id))
     const deletedEdgeIds = new Set(selectedEdges.map((e) => e.id))
     setNodes((nds) => nds.filter((n) => !deletedNodeIds.has(n.id)))
     // Cascade: also drop edges attached to a deleted node even if the edge
     // itself wasn't selected (e.g. box-selecting a node without its edges).
     setEdges((eds) => eds.filter((e) => !deletedEdgeIds.has(e.id) && !deletedNodeIds.has(e.source) && !deletedNodeIds.has(e.target)))
+    const ownedSubDiagramIds = withSubDiagrams.map((n) => n.data.subDiagramId).filter((x): x is string => Boolean(x))
+    if (ownedSubDiagramIds.length > 0) {
+      setProject((p) => (p ? ownedSubDiagramIds.reduce((acc, id) => removeSubDiagramSubtree(acc, id), p) : p))
+    }
   }
 
   function clearSelection() {
@@ -734,6 +841,25 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
             )}
           </div>
         </div>
+        {breadcrumb.length > 0 && (
+          <div className="canvas-toolbar__row canvas-breadcrumb">
+            <button type="button" className="canvas-breadcrumb__crumb" onClick={goToTopLevel}>
+              {project.name}
+            </button>
+            {breadcrumb.map((b, i) => (
+              <span className="canvas-breadcrumb__segment" key={b.id}>
+                <IconChevronRight size={13} aria-hidden="true" />
+                {i === breadcrumb.length - 1 ? (
+                  <span className="canvas-breadcrumb__crumb canvas-breadcrumb__crumb--current">{b.label}</span>
+                ) : (
+                  <button type="button" className="canvas-breadcrumb__crumb" onClick={() => goToBreadcrumbIndex(i)}>
+                    {b.label}
+                  </button>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
         {hasRibbon && ribbonOpen && (
           <div className="canvas-toolbar__row canvas-toolbar__row--ribbon">
             {view === 'diagram' && (
@@ -782,7 +908,9 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
                   riskColorByTarget,
                   complianceTagsByTarget: overlayLayers.complianceTags ? complianceTagsByTarget : EMPTY_COMPLIANCE_MAP,
                   pciScopeByTarget: overlayLayers.complianceTags ? pciScopeByTarget : EMPTY_PCI_SCOPE_MAP,
+                  subDiagramOpenThreatCountByTarget,
                   onViewThreat: viewThreatOnCanvas,
+                  onOpenSubDiagram: openSubDiagramFromBadge,
                 }}
               >
                 <ReactFlow
@@ -815,6 +943,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
               onUpdateEdge={updateEdge}
               onReverseEdge={reverseEdge}
               onSaveCustomStencil={saveCustomStencil}
+              onOpenSubDiagram={drillIntoSubDiagram}
               onDelete={deleteSelection}
               onClose={clearSelection}
               width={inspectorWidth}
@@ -888,6 +1017,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
             onUpdateEdge={updateEdge}
             onReverseEdge={reverseEdge}
             onSaveCustomStencil={saveCustomStencil}
+            onOpenSubDiagram={drillIntoSubDiagram}
             onDelete={deleteSelection}
             onClose={clearSelection}
             width={inspectorWidth}
