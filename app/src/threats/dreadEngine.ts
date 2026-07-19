@@ -68,6 +68,14 @@ function attributeContributions(threat: Threat, attrs: Record<string, AttributeV
   if (['Kernel', 'System', 'Administrator'].includes(attrs.runningAs as string) && threat.category === 'E') {
     add('damage', `Runs as ${attrs.runningAs} (elevated privileges)`, 2)
   }
+  // AI/ML risk surface (Release 10) — same signal ruleEngine.ts folds into
+  // these threats' descriptions.
+  if (attrs.usesAI === true && threat.category === 'T') {
+    add('exploitability', 'Uses AI/ML processing — prompt injection / adversarial input risk', 2)
+  }
+  if (attrs.usesAI === true && threat.category === 'I') {
+    add('damage', 'AI/ML processing may leak training data or sensitive inference inputs/outputs', 2)
+  }
 
   // Data store
   if (attrs.storesCredentials === true && attrs.encryptedAtRest !== true && threat.category === 'I') {
@@ -144,29 +152,62 @@ function complianceContributions(threat: Threat, diagram: Diagram): DreadContrib
  *  is a declared mitigation control (Release 6) gets a reduced score on
  *  Tampering — the one category its declared properties (blocks unauthorized
  *  traffic / inspects payload) most directly speak to. Spoofing/Information
- *  Disclosure/DoS are deliberately left alone: there's no clean, statable
+ *  Disclosure are deliberately left alone: there's no clean, statable
  *  mechanism by which those properties specifically reduce *those*, same bar
- *  Release 5's compliance bump used. Never suppresses the threat itself or
- *  auto-resolves it — a human still has to review and close it out; this
- *  only lowers the starting suggestion, gated on the control's ruleset being
- *  confirmed current (`rulesUpToDate !== false`) so a stale WAF doesn't get
- *  credit for protection it may no longer reliably provide. */
+ *  Release 5's compliance bump used. Denial of Service joined in Release 10,
+ *  gated on the mitigation's own `rateLimitingEnabled` — the first mitigation
+ *  attribute with a clean, statable reason to reduce *that* category
+ *  specifically (API Gateway's whole reason for existing here). Never
+ *  suppresses the threat itself or auto-resolves it — a human still has to
+ *  review and close it out; this only lowers the starting suggestion, gated
+ *  on the control's ruleset being confirmed current (`rulesUpToDate !==
+ *  false`) so a stale control doesn't get credit for protection it may no
+ *  longer reliably provide. */
 function mitigationContributions(threat: Threat, diagram: Diagram): DreadContribution[] {
-  if (threat.targetType !== 'edge' || threat.category !== 'T') return []
+  if (threat.targetType !== 'edge') return []
+  if (threat.category !== 'T' && threat.category !== 'D') return []
   const edge = diagram.edges.find((e) => e.id === threat.targetId)
   const source = edge && diagram.nodes.find((n) => n.id === edge.source)
   if (!source || source.data.elementType !== 'mitigation') return []
   const attrs = source.data.attributes ?? {}
   const rulesCurrent = attrs.rulesUpToDate !== false
   const contributions: DreadContribution[] = []
-  if (attrs.blocksUnauthorizedTraffic === true && rulesCurrent) {
-    contributions.push({ key: 'exploitability', label: `${source.data.label} blocks unauthorized traffic`, amount: -2 })
+  if (threat.category === 'T') {
+    if (attrs.blocksUnauthorizedTraffic === true && rulesCurrent) {
+      contributions.push({ key: 'exploitability', label: `${source.data.label} blocks unauthorized traffic`, amount: -2 })
+    }
+    if (attrs.inspectsPayload === true && rulesCurrent) {
+      contributions.push({ key: 'exploitability', label: `${source.data.label} inspects payload content`, amount: -1 })
+      contributions.push({ key: 'damage', label: `${source.data.label} inspects payload content`, amount: -1 })
+    }
   }
-  if (attrs.inspectsPayload === true && rulesCurrent) {
-    contributions.push({ key: 'exploitability', label: `${source.data.label} inspects payload content`, amount: -1 })
-    contributions.push({ key: 'damage', label: `${source.data.label} inspects payload content`, amount: -1 })
+  if (threat.category === 'D' && attrs.rateLimitingEnabled === true && rulesCurrent) {
+    contributions.push({ key: 'exploitability', label: `${source.data.label} enforces rate limiting`, amount: -2 })
+    contributions.push({ key: 'affectedUsers', label: `${source.data.label} enforces rate limiting`, amount: -1 })
   }
   return contributions
+}
+
+/** AI/ML risk surface (Release 10), the edge half — a flow terminating at
+ *  an external entity declared as a third-party AI/LLM provider gets an
+ *  Information Disclosure bump, since data leaving the trust boundary in a
+ *  prompt to an external model is the sharpest real-world version of this
+ *  risk. Deliberately only Information Disclosure, not every category —
+ *  same "no clean statable reason, don't force it" rule the compliance and
+ *  mitigation bumps already follow. The process half of this risk surface
+ *  (usesAI) is handled in `attributeContributions` above since it's a plain
+ *  node attribute; this one needs `diagram` to look past the edge's own
+ *  attributes to its target node's. */
+function aiContributions(threat: Threat, diagram: Diagram): DreadContribution[] {
+  if (threat.targetType !== 'edge' || threat.category !== 'I') return []
+  const edge = diagram.edges.find((e) => e.id === threat.targetId)
+  const target = edge && diagram.nodes.find((n) => n.id === edge.target)
+  if (!target || target.data.elementType !== 'external-entity') return []
+  if (target.data.attributes?.usesThirdPartyAIProvider !== true) return []
+  return [
+    { key: 'damage', label: `Sends data to ${target.data.label}, a third-party AI/LLM provider`, amount: 2 },
+    { key: 'affectedUsers', label: `Sends data to ${target.data.label}, a third-party AI/LLM provider`, amount: 1 },
+  ]
 }
 
 /** Full breakdown of why a threat's suggested DREAD score is what it is —
@@ -186,6 +227,7 @@ export function explainDreadScore(threat: Threat, diagram: Diagram): DreadContri
     ...attributeContributions(threat, attrs),
     ...complianceContributions(threat, diagram),
     ...mitigationContributions(threat, diagram),
+    ...aiContributions(threat, diagram),
   ]
 }
 

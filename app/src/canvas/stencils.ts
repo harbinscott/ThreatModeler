@@ -178,6 +178,15 @@ export const BUILT_IN_STENCILS: StencilDef[] = [
     elementType: 'mitigation',
     defaults: { mitigationType: 'IDS/IPS', inspectsPayload: true, logsTraffic: true },
   },
+  {
+    id: 'api-gateway',
+    name: 'API Gateway',
+    elementType: 'mitigation',
+    // Release 10 — the first mitigation stencil to default rateLimitingEnabled
+    // on, since that's the field's whole reason for existing (see
+    // mstmAttributes.ts's mitigationSecurityFields()).
+    defaults: { mitigationType: 'API Gateway', blocksUnauthorizedTraffic: true, rateLimitingEnabled: true },
+  },
 ]
 
 export interface StencilOption {

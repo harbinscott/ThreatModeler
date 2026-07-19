@@ -36,6 +36,18 @@ export const PROCESS_TYPE_OPTIONS = [
   'Background Service',
 ]
 
+const usesAI = (a: Record<string, AttributeValue>) => a.usesAI === true
+
+/** Kept as a reference list (not rendered directly) — `aiFunction`'s own
+ *  field def in `processSecurityFields()` references this. */
+export const AI_FUNCTION_OPTIONS = [
+  'LLM / Generative AI',
+  'ML Classification / Scoring',
+  'Recommendation Engine',
+  'Computer Vision',
+  'Other',
+]
+
 export function processSecurityFields(): AttributeFieldDef[] {
   return [
     { key: 'codeType', label: 'Code type', type: 'select', options: ['Managed', 'Unmanaged'] },
@@ -88,6 +100,14 @@ export function processSecurityFields(): AttributeFieldDef[] {
     { key: 'deviceCamera', label: 'Camera / microphone', type: 'boolean', when: isMobileDeviceApp },
     { key: 'deviceMessaging', label: 'SMS / messaging data', type: 'boolean', when: isMobileDeviceApp },
     { key: 'deviceCredentials', label: 'Cached credentials / enterprise data', type: 'boolean', when: isMobileDeviceApp },
+    // AI/ML risk surface (Release 10) — a declared risk surface distinct
+    // from every other process field above: an AI/ML component carries
+    // prompt-injection/adversarial-input risk (Tampering) and
+    // training/inference data-leakage risk (Information Disclosure) that
+    // no existing MS-TMT field captures. See ruleEngine.ts/dreadEngine.ts
+    // for how this feeds STRIDE descriptions and DREAD scoring.
+    { key: 'usesAI', label: 'Uses AI/ML processing', type: 'boolean' },
+    { key: 'aiFunction', label: 'AI function', type: 'select', options: AI_FUNCTION_OPTIONS, when: usesAI },
   ]
 }
 
@@ -162,6 +182,13 @@ export function externalInteractorSecurityFields(): AttributeFieldDef[] {
     { key: 'authenticated', label: 'Authenticates itself', type: 'boolean' },
     { key: 'type', label: 'Type', type: 'select', options: ['Not Selected', 'Code', 'Human'] },
     { key: 'vendorManaged', label: 'Third-party / vendor-managed', type: 'boolean' },
+    // AI/ML risk surface (Release 10) — marks *this* external entity as a
+    // third-party AI/LLM provider (e.g. an "OpenAI API" node), the sharpest
+    // real-world version of the AI risk surface: data leaving the trust
+    // boundary in a prompt to an external model. A data flow terminating
+    // at an entity with this set gets an Information Disclosure bump — see
+    // dreadEngine.ts's `aiContributions()`.
+    { key: 'usesThirdPartyAIProvider', label: 'Is a third-party AI/LLM provider', type: 'boolean' },
   ]
 }
 
@@ -213,7 +240,7 @@ export function dataFlowSecurityFields(): AttributeFieldDef[] {
 
 /** Kept as a reference list (not rendered directly) — stencils in `stencils.ts`
  *  set `mitigationType` via their `defaults`, same pattern as `processType`. */
-export const MITIGATION_TYPE_OPTIONS = ['Generic Mitigation Control', 'Firewall', 'WAF', 'IDS/IPS']
+export const MITIGATION_TYPE_OPTIONS = ['Generic Mitigation Control', 'Firewall', 'WAF', 'IDS/IPS', 'API Gateway']
 
 /** A mitigation's declared properties are read by `ruleEngine.ts`/`dreadEngine.ts`
  *  for any data flow whose *source* is this node — see `mitigationContributions()`
@@ -223,13 +250,18 @@ export const MITIGATION_TYPE_OPTIONS = ['Generic Mitigation Control', 'Firewall'
  *  with a stale ruleset shouldn't get credit for filtering it may no longer do
  *  reliably. Deliberately no "terminates TLS" field: TLS termination splits
  *  trust rather than reducing risk, so it wouldn't have a clean, defensible
- *  scoring direction. */
+ *  scoring direction. `rateLimitingEnabled` (Release 10, added for API
+ *  Gateway) is the first mitigation attribute with a clean, statable reason
+ *  to reduce Denial-of-Service risk specifically — see
+ *  `mitigationContributions()` in `dreadEngine.ts`, which until now only
+ *  ever touched Tampering. */
 export function mitigationSecurityFields(): AttributeFieldDef[] {
   return [
     { key: 'blocksUnauthorizedTraffic', label: 'Blocks unauthorized traffic', type: 'boolean' },
     { key: 'inspectsPayload', label: 'Inspects payload / content', type: 'boolean' },
     { key: 'logsTraffic', label: 'Logs traffic', type: 'boolean' },
     { key: 'rulesUpToDate', label: 'Rules / signatures up to date', type: 'boolean' },
+    { key: 'rateLimitingEnabled', label: 'Rate limiting enabled', type: 'boolean' },
   ]
 }
 

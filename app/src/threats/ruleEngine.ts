@@ -162,6 +162,12 @@ export function generateThreats(diagram: Diagram): Threat[] {
         if (cat === 'I' && attrs.sanitizesOutput === false) {
           desc += ' Output is not sanitized, increasing the chance of leaking sensitive data.'
         }
+        if (cat === 'T' && attrs.usesAI === true) {
+          desc += ' This process performs AI/ML processing — verify resilience to prompt injection or adversarial input designed to manipulate its output.'
+        }
+        if (cat === 'I' && attrs.usesAI === true) {
+          desc += ' AI/ML processing here could leak training data or sensitive inference inputs/outputs if not properly isolated — verify what is logged, cached, or reused for further training.'
+        }
         if (cat === 'I' || cat === 'T' || cat === 'R') desc += complianceNote(tags, pciScope)
         threats.push(
           makeThreat(`process-${cat}`, 'node', node.id, label, cat, `${CATEGORY_NAMES[cat]} of ${label}`, desc, node.data.componentType)
@@ -266,6 +272,9 @@ export function generateThreats(diagram: Diagram): Threat[] {
       }
       if (cat === 'I' && edgeAttrs.providesConfidentiality === false) {
         desc += ' This flow does not provide confidentiality — data may be readable in transit.'
+      }
+      if (cat === 'I' && target.data.elementType === 'external-entity' && target.data.attributes?.usesThirdPartyAIProvider === true) {
+        desc += ` This flow sends data to ${target.data.label}, a declared third-party AI/LLM provider — verify no PII, secrets, or proprietary data is included without an appropriate data processing agreement.`
       }
       if (wireless) {
         desc += ` Transport is over ${edgeAttrs.physicalNetwork}, which raises interception risk.`

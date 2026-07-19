@@ -128,6 +128,15 @@ const MITIGATION_CONTROLS: Record<string, ControlRef[]> = {
     { framework: 'NIST 800-53', id: 'SI-4', name: 'System Monitoring' },
     { framework: 'CIS Controls v8', id: '13', name: 'Network Monitoring and Defense' },
   ],
+  // Release 10. ASVS 5.0 renumbered its chapters again since the WAF entry
+  // above was verified against 4.0->5.0 in Release 7 — reverified live here:
+  // "V4: API and Web Service" is the current chapter for generic API/web
+  // service protection, not the "V13" a 4.0-era memory might suggest.
+  'API Gateway': [
+    { framework: 'NIST 800-53', id: 'SC-7', name: 'Boundary Protection' },
+    { framework: 'NIST 800-53', id: 'AC-4', name: 'Information Flow Enforcement' },
+    { framework: 'OWASP ASVS v5.0', id: 'V4', name: 'API and Web Service (compensating control)' },
+  ],
 }
 
 export function controlsForMitigationType(mitigationType: string | undefined): ControlRef[] {

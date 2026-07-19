@@ -40,17 +40,17 @@ obvious from the code alone.
      built instead of a real Jira/GitHub API integration per user's
      explicit scope choice (no credentials/network calls needed, works
      with any tracker).
-3. **Next up: Release 10 — Modern Elements: AI Risk Surface & API Gateway**
-   (scoped this session, not built) — new. The user
-   supplied a competitor requirements doc
-   (`threat-modeling-tool-requirements.md`) at the start of this session;
-   most of it was already built or already roadmapped (see "Requirements
-   doc gap analysis" below for the full comparison), but two ideas the user
-   raised independently — AI/ML processing as a declared risk surface, and
-   modern mitigation types like API Gateway — weren't, and were scoped as
-   their own release, bundled together since they're both "extend the
-   element/mitigation catalog" work of similar shape. See "Release roadmap"
-   below for the full scope.
+3. **✅ Release 10 — Modern Elements: AI Risk Surface & API Gateway — done
+   and verified.** Two ideas the user raised independently overnight (not
+   from the competitor requirements doc reviewed this session, though
+   evaluated against it — see "Requirements doc gap analysis" below) —
+   AI/ML processing as a declared risk surface, and modern mitigation
+   types like API Gateway — bundled into one release since they're both
+   "extend the element/mitigation catalog" work of similar shape. See
+   "Modern elements: AI risk surface & API Gateway (Release 10)" under
+   "What's built" for the full writeup. **Next up: Release 11 — Reporting
+   & Risk Register Enhancements** (scoped, not started) — see "Release
+   roadmap" below for the full scope.
 4. **Release 11 — Reporting & Risk Register Enhancements** (renumbered
    from 10 to make room for the above; scoped, still not built):
    inherent-vs-residual DREAD scores, sub-diagrams included in PDF export
@@ -733,6 +733,63 @@ abort the whole delete if the user cancels — a real data-safety gap the
 user caught before it bit anyone, same category of fix as Release 3's
 unsaved-changes-guard backlog item.
 
+**Modern elements: AI risk surface & API Gateway (Release 10)** — done and
+verified. Two independent additions, bundled since they're both "extend
+the element/mitigation catalog" work of the same shape (`mstmAttributes.ts`
+fields → `ruleEngine.ts` description text → `dreadEngine.ts` score bumps →
+optionally `threatIntel.ts` citations), following the exact pattern every
+prior attribute addition already used — nothing structurally new needed
+for either.
+
+*AI/ML processing as a declared risk surface*: Process gained `usesAI`
+(boolean) and `aiFunction` (select — LLM/Generative AI, ML
+Classification/Scoring, Recommendation Engine, Computer Vision, Other;
+`when: usesAI` so it's hidden until the boolean is checked, same
+conditional-field mechanism `isMobileDeviceApp` already uses).  External
+Entity gained `usesThirdPartyAIProvider` (boolean) — marks *that entity
+itself* as a third-party AI/LLM provider (e.g. an "OpenAI API" node in the
+diagram), not "this entity uses one." `ruleEngine.ts`: a process with
+`usesAI` gets extra Tampering text (prompt injection / adversarial input)
+and Information Disclosure text (training/inference data leakage); a data
+flow whose *target* is an external entity with `usesThirdPartyAIProvider`
+gets Information Disclosure text about data leaving the trust boundary in
+a prompt. `dreadEngine.ts`: matching score bumps — the process-level ones
+live in the existing `attributeContributions()` (attrs already resolve to
+the process's own attributes for a node-target threat), but the
+flow-to-AI-provider bump needed a new `aiContributions(threat, diagram)`
+function since it has to look *past* the edge's own attributes to its
+target node's — `attributeContributions()` only ever sees the threat's
+direct target's attrs, not a neighbor's. Deliberately only Information
+Disclosure gets the flow-level bump, not every category — same "no clean
+statable reason, don't force it" rule the compliance/mitigation bumps
+already follow. Stretch idea from the roadmap (citing OWASP's LLM Top 10
+the way Release 7 cites CAPEC/CWE) was explicitly scoped as not required
+for v1 and wasn't built this pass — worth a future release if wanted.
+
+*API Gateway as a new mitigation stencil*: new stencil in `stencils.ts`
+(defaults `blocksUnauthorizedTraffic: true, rateLimitingEnabled: true`),
+and a new `rateLimitingEnabled` field in `mitigationSecurityFields()` —
+**the first mitigation attribute with a clean, statable reason to reduce
+Denial-of-Service DREAD specifically**; every mitigation bump before this
+(Release 6) only ever touched Tampering via `blocksUnauthorizedTraffic`/
+`inspectsPayload`. `mitigationContributions()` in `dreadEngine.ts` was
+restructured from an early `category !== 'T'` return into a per-category
+branch so it can also fire for `'D'` threats, gated the same way the
+Tampering branch already is (`rulesUpToDate !== false`, so a stale
+gateway's rate limiter doesn't get credit for protection it may no
+longer reliably provide). New `threatIntel.ts` control mapping: NIST
+800-53 SC-7 (Boundary Protection, reused from Firewall) + AC-4
+(Information Flow Enforcement, new), OWASP ASVS v5.0 V4 "API and Web
+Service" — **all verified live before shipping**, per the practice
+established in Release 7. Worth noting for future citation work: initial
+search results disagreed on the chapter number for API/web-service
+coverage in ASVS 5.0 (one source said "V13," another "V4") — resolved by
+checking the OWASP Cheat Sheet Series' own ASVS index page as the more
+authoritative source, which confirmed "V4: API and Web Service." Not
+evidence the standard renumbered again since Release 7, just a reminder
+that even "live" search results can disagree with each other, so the
+actual verification step matters, not just the act of searching.
+
 **Auto-layout boundary-containment fix (bugfix session)** — the day
 Release 8 part 2 shipped, the user reported (with before/after
 screenshots) that clicking Tidy Up could move a node entirely outside its
@@ -1281,8 +1338,9 @@ already built:
   ownership + a due date, floated as a possible pairing with the original
   Jira idea, wasn't built — still worth considering for a future release if
   wanted, but nothing forces it now that the tracker-push scope changed.
-- **Release 10 — Modern Elements: AI Risk Surface & API Gateway** *(scoped
-  this session; not started; next up after the Tidy Up bugfix)*. Prompted
+- **Release 10 — Modern Elements: AI Risk Surface & API Gateway** ✅ done
+  and verified. See "Modern elements: AI risk surface & API Gateway
+  (Release 10)" under "What's built" for the full writeup. Prompted
   by the user's own "keep the tool from going stale" ideas, evaluated
   against the requirements doc (see "Requirements doc gap analysis" below)
   and found to be sharper than anything the doc itself proposes for AI
