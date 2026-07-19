@@ -8,70 +8,76 @@ obvious from the code alone.
 
 ## Resume here (updated end of this session)
 
-1. **Release 8 — Diagram Scalability — done and fully verified, both
-   parts.** See "Sub-diagrams (Release 8, part 1)" and "Auto-layout
-   (Release 8, part 2)" under "What's built" below for the full writeups.
-   Highlights:
-   - **Part 1, sub-diagrams (DFD leveling)**: Process nodes only (Data
-     Stores/External Entities/Trust Boundaries/Mitigations are terminal in
-     DFD methodology) can drill into a nested sub-diagram via a new
-     Inspector button, with a breadcrumb strip for navigating back up.
-     Threats/DREAD/undo history are scoped per level — explicitly no
-     rollup into the parent, per user scope decision. A top-left canvas
-     badge (gray, or tiered amber/coral/red if there are open threats
-     inside) shows which Process nodes own one and jumps straight in on
-     click; deleting a Process that owns a sub-diagram now warns first,
-     both added after initial live testing.
-   - **Part 2, auto-layout**: a "Tidy up" ribbon button reflows
-     Process/Data Store/External Entity/Mitigation nodes top-to-bottom via
-     `dagre`, based on their actual flow edges. Trust boundaries are
-     handled as dagre *compound* (cluster) parents rather than ordinary
-     nodes — since they represent spatial containment, not flow
-     connectivity, which is what dagre lays out by — so a boundary always
-     resizes to still fully enclose whatever ends up inside it after a
-     reflow, instead of nodes drifting outside their zone.
-2. **Next up: Release 9 — SDLC integration.** Threat model
-   versioning/diffing between saves (capped revision history, restore),
-   risk-acceptance sign-off (who/when/review-by date, not just a status +
-   freeform note), and pushing open threats to Jira/GitHub Issues as
-   tracked work. See "Release roadmap" below.
-   - A new **Release 10 — Reporting & Risk Register Enhancements** was
-     scoped (not built) this session after the user asked for a "review
-     everything as a professional risk assessor" pass: inherent-vs-
-     residual DREAD scores, sub-diagrams included in PDF export with a
-     header per level, a Threats risk-register table view, CSV export,
-     compliance/DREAD-risk filters on the Threats tab, and standalone
-     diagram PNG/SVG export. Inserted between the existing Release 9 and
-     the stretch release, which is renumbered to Release 11 as a result —
-     see "Release roadmap" for the full scoping notes, including one real
-     implementation wrinkle already flagged (sub-diagram PDF capture needs
-     to drive the Release 8 navigation functions programmatically, since
-     only one level's diagram DOM is ever mounted at a time).
-3. One unrelated bug reported during this session, logged but **not yet
-   fixed** per explicit user request (backlog only): `ColorSwatchPicker.tsx`'s
-   "Recent" custom colors all show the same color instead of a history of
-   distinct ones after a single custom pick. Root cause not confirmed — the
-   likely culprit is `<input type="color">`'s `onChange` (which React maps to
-   the native `input` event, firing continuously during a live drag in the
-   OS color picker) calling `addRecentColor()` many times per pick, but
-   `color.ts`'s dedup logic looks correct in isolation on a static read, so
-   this needs interactive debugging before a fix, not a guess. See Backlog
-   below.
-4. Releases 6 (mitigation elements) and 7 (threat intelligence grounding)
-   are done and fully verified — see "What's built" below for the full
-   writeups, not repeated here now that Release 8 is the latest work.
-5. Two more items came in from Release 3 testing and were folded into the
+1. **🔴 Priority fix for next session: "Tidy up" can orphan a node outside
+   its trust boundary.** User-reported with before/after screenshots:
+   clicking Tidy Up (`autoLayoutDiagram` in `src/canvas/autoLayout.ts`,
+   Release 8 part 2) moved "Message Queue" from inside the "INTERNAL
+   NETWORK" trust boundary to a position entirely outside all boundaries,
+   while its siblings (Database, Web Server, Load Balancer) correctly
+   stayed contained. **Not yet fixed or interactively debugged** — this is
+   a real correctness regression in a shipped feature, not polish, and
+   should be the first thing addressed next session. Leading hypothesis
+   (static analysis only, not confirmed against a repro): dagre's
+   compound/cluster support (used via `g.setParent()` to keep a
+   boundary's children together) is best-effort during ranking, not a hard
+   constraint — a child node with edges pulling toward nodes in a
+   different rank/cluster (Message Queue appears to have a cross-boundary
+   edge to "Third-Party Service") can end up positioned outside its
+   cluster's final bounding box even though `setParent()` was called
+   correctly. Recommended fix direction: add a post-layout correction pass
+   that clamps any child node whose final dagre position falls outside its
+   intended boundary's final computed rect back inside it (with interior
+   padding), rather than trusting dagre's compound output unconditionally.
+   See Backlog below for the tracked entry.
+2. **Release 9 — SDLC Integration — done and fully verified, all three
+   stages.** See "SDLC integration (Release 9)" under "What's built" below
+   for the full writeup. Highlights:
+   - **Version history**: every Save captures a full-project snapshot as a
+     restorable revision (capped at the last 10; a separate uncapped
+     `revisionCount` badge next to the back arrow keeps counting past
+     that). Restoring loads the old snapshot back into the editor but
+     deliberately doesn't auto-save — the user still has to click Save to
+     make it the new persisted state.
+   - **Risk-acceptance sign-off**: Accepted by / auto-stamped Accepted-on /
+     Review-by date fields appear once a threat's status is set to
+     'accepted'; an overdue review-by date now surfaces as a warning in the
+     Messages dialog.
+   - **Copy as Markdown**: a button on any threat's detail view copies a
+     self-contained Markdown block (DREAD, compliance scope, CAPEC/CWE
+     citations, compensating controls, notes, sign-off) to the clipboard —
+     built instead of a real Jira/GitHub API integration per user's
+     explicit scope choice (no credentials/network calls needed, works
+     with any tracker).
+3. **Next up: Release 10 — Reporting & Risk Register Enhancements**
+   (scoped, not built): inherent-vs-residual DREAD scores, sub-diagrams
+   included in PDF export with a header per level, a Threats risk-register
+   table view, CSV export, compliance/DREAD-risk filters on the Threats
+   tab, and standalone diagram PNG/SVG export. See "Release roadmap" below
+   for the full scoping notes, including the sub-diagram PDF capture
+   implementation wrinkle already flagged there.
+4. One more unrelated bug reported earlier this session, logged but **not
+   yet fixed** per explicit user request (backlog only):
+   `ColorSwatchPicker.tsx`'s "Recent" custom colors all show the same color
+   instead of a history of distinct ones after a single custom pick. Root
+   cause not confirmed — the likely culprit is `<input type="color">`'s
+   `onChange` (which React maps to the native `input` event, firing
+   continuously during a live drag in the OS color picker) calling
+   `addRecentColor()` many times per pick, but `color.ts`'s dedup logic
+   looks correct in isolation on a static read, so this needs interactive
+   debugging before a fix, not a guess. See Backlog below.
+5. Releases 6 (mitigation elements), 7 (threat intelligence grounding), and
+   8 (diagram scalability) are done and fully verified — see "What's
+   built" below for the full writeups, not repeated here now that Release
+   9 is the latest work.
+6. One more item came in from Release 3 testing and was folded into the
    roadmap rather than built immediately: an unsaved-changes guard (warn
    before navigating away from an edited-but-unsaved diagram) — Backlog
-   item 1 below, small and a real data-safety gap — and a capped
-   version-history/rollback feature, which landed in Release 9 (SDLC
-   integration) since it already covered related ground
-   ("versioning/diffing between saves"). Neither has been started.
-6. Two small backlog items remain from earlier sessions, both low priority,
+   item 1 below, small and a real data-safety gap. Not started.
+7. Two small backlog items remain from earlier sessions, both low priority,
    neither blocking: trust boundary shape editing *after* creation
    (currently creation-time only), and further parallel-edge endpoint
    visual polish. See Backlog below.
-7. Everything is committed and pushed to
+8. Everything is committed and pushed to
    `https://github.com/harbinscott/ThreatModeler` (`main` branch) as of the
    end of this session.
 
@@ -526,6 +532,63 @@ every category the DREAD engine actually bumps for compliance scope
 entities) — found via the same investigation, since the description text
 had only ever been wired up for Information Disclosure even after
 Repudiation's *score* got the compliance treatment in the round before.
+
+**SDLC integration (Release 9)** — three independently-scoped stages, each
+checkpointed separately.
+
+*Version history*: new `ProjectRevision` type (`types/project.ts`,
+`{id, savedAt, snapshot}`) and `Project.revisionHistory?`/`revisionCount?`.
+Same "full snapshot, not a diff" architecture `useDiagramHistory`'s undo
+stack already uses, applied at the project level — the user explicitly
+scoped out a diff view for this pass (list + restore only). `handleSave()`
+in `Canvas.tsx` now builds the full committed project state (via the same
+`writeLevel()` from Release 8), snapshots everything that can change across
+a save (diagram/threats/pasta/info/notes/customStencils/subDiagrams) into a
+new revision, prepends it, and slices to `MAX_REVISIONS` (10) — while
+`revisionCount` keeps incrementing uncapped, so the toolbar badge next to
+the back arrow ("v12") reflects the true number of saves even once only the
+last 10 are restorable. New `HistoryDialog.tsx` (reuses `Modal.tsx`) lists
+revisions newest-first with a Restore button each. `restoreRevision()`
+loads an old snapshot back into the live editing state — always resets the
+breadcrumb to the top level and calls the same `loadLevelIntoState()` /
+`history.reset()` pattern Release 8's sub-diagram navigation already
+established — but deliberately does **not** auto-save: restoring only
+replaces what's being *edited*, and the user still has to click Save to
+make it the new persisted state, same as every other edit in this app. That
+also means restoring-then-saving doesn't destroy the revisions that existed
+between the restored point and now (non-destructive, like `git revert`
+rather than `git reset`).
+
+*Risk-acceptance sign-off*: `Threat` gained `acceptedBy?`/`acceptedAt?`/
+`reviewByDate?` (`types/project.ts`). `ThreatsPanel.tsx`'s detail view shows
+an "Accepted by" text field and a "Review by" date field once
+`status === 'accepted'`, plus a read-only "Accepted [date]" line.
+`acceptedAt` auto-stamps in `Canvas.tsx`'s `changeThreatStatus()` the first
+time status becomes `'accepted'` and is **never overwritten afterward** —
+deliberately: it records when a threat was *first* accepted, not the last
+time the status field happened to read 'accepted', so reopening and
+re-accepting a threat doesn't erase that history. `diagnostics.ts` gained an
+overdue-review check (`reviewByDate` in the past while still `'accepted'`)
+surfaced as a warning in the Messages dialog — simple ISO-date string
+comparison, no `Date` parsing needed since `<input type="date">` and
+`new Date().toISOString().slice(0,10)` are already both `YYYY-MM-DD`.
+
+*Copy as Markdown*: the original roadmap idea here was "push open threats
+to Jira/GitHub Issues" — scoped down before building, via an explicit
+user choice, to a clipboard-based "Copy as Markdown" button instead. No
+credentials, no network calls, works with literally any tracker (Jira,
+GitHub, Linear, ...) rather than committing to one API — a deliberately
+smaller, lower-risk piece than a real integration would have been, and a
+real API push (GitHub Issues specifically, using Electron's `safeStorage`
+for the token) was named as a possible later follow-up rather than built
+now. New `threatToMarkdown(threat, ctx)` in `threatIntel.ts` — reuses
+`citationsForThreat()`/`controlsForMitigationType()`/
+`dreadTotal()`/`dreadAverage()`/`dreadRiskLevel()` rather than duplicating
+any of that logic, and only includes a section (DREAD, compliance scope,
+references, compensating controls, notes, risk-acceptance) when there's
+actually something to say. `ThreatsPanel.tsx`'s detail panel gained a
+"Copy as Markdown" button next to Delete (`navigator.clipboard.writeText()`,
+transient "Copied ✓" state matching the Save button's own pattern).
 
 **Sub-diagrams (Release 8, part 1)** — DFD leveling: a Process node can drill
 into its own nested diagram. New `SubDiagram` type (`types/project.ts`,
@@ -1057,17 +1120,15 @@ already built:
 - **Release 8 — Diagram scalability** ✅ done and verified this session,
   both parts — see "Sub-diagrams (Release 8, part 1)" and "Auto-layout
   (Release 8, part 2)" under "What's built".
-- **Release 9 — SDLC integration**: threat model versioning/diffing between
-  saves — the user's ask, surfaced testing Release 3, was specific: a
-  revision counter next to the Canvas back-arrow that increments on every
-  save, clickable to see a list of past revisions with timestamps, and
-  restore any of them. Capped at the last 5-10 saves to avoid unbounded
-  project-file growth, with a settings override to raise the cap. Also:
-  risk-acceptance sign-off (who/when/review-by date, not just a status +
-  freeform note), push open threats to Jira/GitHub Issues as tracked work
-  — threat ownership + a due date would pair naturally with this piece
-  (not yet scoped as its own item, but worth considering alongside it
-  rather than as a separate release).
+- **Release 9 — SDLC integration** ✅ done and verified this session, all
+  three stages — see "SDLC integration (Release 9)" under "What's built".
+  Scope note: the original "push open threats to Jira/GitHub Issues" idea
+  shipped as a "Copy as Markdown" button instead (no credentials/network
+  calls, works with any tracker) per an explicit user scope choice made
+  before starting — see that section for the full reasoning. Threat
+  ownership + a due date, floated as a possible pairing with the original
+  Jira idea, wasn't built — still worth considering for a future release if
+  wanted, but nothing forces it now that the tracker-push scope changed.
 - **Release 10 — Reporting & Risk Register Enhancements** *(scoped this
   session from a "review everything as a professional risk assessor" ask;
   not started)*:
@@ -1121,7 +1182,26 @@ already built:
 
 ## Backlog (explicitly deferred, in rough priority order per most recent conversation)
 
-1. **Unsaved-changes guard** — added this session, user-flagged as a real
+1. **🔴 "Tidy up" can orphan a node outside its trust boundary** —
+   user-reported (with before/after screenshots) the day it shipped:
+   clicking Tidy Up (`autoLayoutDiagram` in `src/canvas/autoLayout.ts`,
+   Release 8 part 2) moved "Message Queue" out of the "INTERNAL NETWORK"
+   trust boundary entirely, while its siblings (Database, Web Server, Load
+   Balancer) stayed correctly contained. **Highest priority — a real
+   correctness regression, not polish.** Not yet interactively debugged.
+   Leading hypothesis: dagre's compound/cluster support (`g.setParent()`,
+   used to keep a boundary's children together) is best-effort during
+   ranking, not a hard constraint — a child with edges pulling toward
+   nodes in a different rank/cluster (Message Queue appears to have a
+   cross-boundary edge to "Third-Party Service") can end up positioned
+   outside its cluster's final bounding box even though `setParent()` was
+   called correctly. Recommended fix direction: a post-layout correction
+   pass that clamps any child node whose final dagre position falls
+   outside its intended boundary's final computed rect back inside it
+   (with interior padding), rather than trusting dagre's compound output
+   unconditionally. Verify against the actual repro before committing to
+   this diagnosis, though — it's analysis, not a confirmed root cause.
+2. **Unsaved-changes guard** — added this session, user-flagged as a real
    data-safety gap while testing Release 3. Right now the Canvas back arrow
    (and presumably project switch/close) discards any unsaved diagram edits
    with no warning. Needs: a "dirty" flag (compare current nodes/edges/
@@ -1129,18 +1209,18 @@ already built:
    by any mutation and cleared by `save()`), and a confirm dialog on
    navigate-away offering Save / Discard / Cancel. Small, self-contained,
    worth doing before it costs someone real work.
-2. **Trust boundary shape editing after creation** — shape can only be
+3. **Trust boundary shape editing after creation** — shape can only be
    picked at creation time via the toolbar preset; there's no way to change
    an existing boundary's shape afterward. The Inspector shows nothing
    boundary-specific beyond Name/Description/Color/Boundary type (added in
    Release 3). Small, contained addition if wanted (add a shape selector to
    `NodeInspector` in `Inspector.tsx`, gated on `elementType ===
    'trust-boundary'`).
-3. **Parallel-edge endpoint visual polish** — spacing constants were tuned
+4. **Parallel-edge endpoint visual polish** — spacing constants were tuned
    once (`ENDPOINT_SPACING`/`PARALLEL_SPACING` in `FloatingEdge.tsx`) but the
    user still feels it needs a proper design pass, not just bigger numbers.
    Low priority.
-4. **Recent custom colors all show the same color** — user-reported (with
+5. **Recent custom colors all show the same color** — user-reported (with
    screenshot) during Release 8 testing: picking one custom color via the
    native color-wheel input makes all 5 "Recent" swatch boxes in
    `ColorSwatchPicker.tsx` show that same color, instead of a history of up

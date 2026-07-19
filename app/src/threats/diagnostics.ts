@@ -67,5 +67,15 @@ export function getDiagramMessages(diagram: Diagram, threats: Threat[]): Diagram
     messages.push({ severity: 'info', text: 'No threats generated yet — click "Regenerate Threats" on the Threats tab.' })
   }
 
+  const today = new Date().toISOString().slice(0, 10)
+  for (const t of threats) {
+    if (t.status === 'accepted' && t.reviewByDate && t.reviewByDate < today) {
+      messages.push({
+        severity: 'warning',
+        text: `Risk acceptance for "${t.title}" is overdue for review (was due ${t.reviewByDate}).`,
+      })
+    }
+  }
+
   return messages
 }

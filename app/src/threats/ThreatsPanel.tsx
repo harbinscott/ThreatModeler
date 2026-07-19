@@ -5,7 +5,7 @@ import { findStencil } from '../canvas/stencils'
 import { COMPLIANCE_TAG_COLOR, COMPLIANCE_TAG_LABELS } from '../canvas/complianceTags'
 import { useResizablePanel } from '../canvas/useResizablePanel'
 import { dreadAverage, dreadRiskLevel, dreadTotal, DREAD_RISK_COLOR } from './dreadEngine'
-import { citationsForThreat, controlsForMitigationType } from './threatIntel'
+import { citationsForThreat, controlsForMitigationType, threatToMarkdown } from './threatIntel'
 import './ThreatsPanel.css'
 
 interface ThreatsPanelProps {
@@ -32,6 +32,11 @@ interface ThreatsPanelProps {
   onChangeStatus: (id: string, status: ThreatStatus) => void
   onChangeNotes: (id: string, notes: string) => void
   onChangeDread: (id: string, dread: DreadScore) => void
+  /** Risk-acceptance sign-off fields — only rendered while status is
+   *  'accepted'. `acceptedAt` isn't settable here; it auto-stamps on the
+   *  status-change side (Canvas.tsx) the first time status becomes
+   *  'accepted'. */
+  onChangeAcceptance: (id: string, patch: Partial<Pick<Threat, 'acceptedBy' | 'reviewByDate'>>) => void
   onDelete: (id: string) => void
 }
 
@@ -160,9 +165,11 @@ export function ThreatsPanel({
   onChangeStatus,
   onChangeNotes,
   onChangeDread,
+  onChangeAcceptance,
   onDelete,
 }: ThreatsPanelProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
   const [statusFilter, setStatusFilter] = useState<ThreatStatus | 'all'>('all')
   const [categoryFilter, setCategoryFilter] = useState<StrideCategory | 'all'>('all')
   const [typeFilter, setTypeFilter] = useState<string>('all')
@@ -194,6 +201,19 @@ export function ThreatsPanel({
   const sorted = [...filtered].sort((a, b) => a.category.localeCompare(b.category))
   const selected = threats.find((t) => t.id === selectedId) ?? null
   const dreadBreakdown: DreadContribution[] = selected?.dreadBreakdown ?? []
+
+  function copySelectedAsMarkdown() {
+    if (!selected) return
+    const markdown = threatToMarkdown(selected, {
+      componentName: selected.componentType ? (findStencil(selected.componentType, customStencils)?.name ?? selected.componentType) : undefined,
+      complianceTags: complianceTagsByTarget.get(selected.targetId),
+      pciScope: pciScopeByTarget.get(selected.targetId),
+      mitigationType: mitigationTypeByTarget.get(selected.targetId),
+    })
+    navigator.clipboard.writeText(markdown)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
 
   return (
     <div className="threats-layout">
@@ -428,6 +448,32 @@ export function ThreatsPanel({
             </select>
           </div>
 
+          {selected.status === 'accepted' && (
+            <div className="threats-detail__field threats-acceptance">
+              <span className="threats-detail__label">Risk acceptance sign-off</span>
+              <label className="threats-acceptance__field">
+                <span>Accepted by</span>
+                <input
+                  type="text"
+                  value={selected.acceptedBy ?? ''}
+                  onChange={(e) => onChangeAcceptance(selected.id, { acceptedBy: e.target.value })}
+                  placeholder="Who accepted this risk?"
+                />
+              </label>
+              {selected.acceptedAt && (
+                <p className="threats-acceptance__accepted-at">Accepted {new Date(selected.acceptedAt).toLocaleDateString()}</p>
+              )}
+              <label className="threats-acceptance__field">
+                <span>Review by</span>
+                <input
+                  type="date"
+                  value={selected.reviewByDate ?? ''}
+                  onChange={(e) => onChangeAcceptance(selected.id, { reviewByDate: e.target.value })}
+                />
+              </label>
+            </div>
+          )}
+
           <div className="threats-detail__field">
             <span className="threats-detail__label">{NOTES_HINT[selected.status]}</span>
             <textarea
@@ -438,16 +484,21 @@ export function ThreatsPanel({
             />
           </div>
 
-          <button
-            type="button"
-            className="btn threats-detail__delete"
-            onClick={() => {
-              onDelete(selected.id)
-              setSelectedId(null)
-            }}
-          >
-            Delete threat
-          </button>
+          <div className="threats-detail__button-row">
+            <button type="button" className="btn" onClick={copySelectedAsMarkdown} title="Copy this threat as formatted Markdown — paste into Jira, GitHub, Linear, or anything else">
+              {copied ? 'Copied ✓' : 'Copy as Markdown'}
+            </button>
+            <button
+              type="button"
+              className="btn threats-detail__delete"
+              onClick={() => {
+                onDelete(selected.id)
+                setSelectedId(null)
+              }}
+            >
+              Delete threat
+            </button>
+          </div>
         </div>
       ) : (
         <div className="threats-detail threats-detail--empty" style={{ width: detailWidth }}>

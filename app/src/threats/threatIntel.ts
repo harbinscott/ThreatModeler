@@ -1,4 +1,5 @@
-import type { StrideCategory, Threat } from '../types/project'
+import type { ComplianceTag, PciScope, StrideCategory, Threat } from '../types/project'
+import { dreadAverage, dreadRiskLevel, dreadTotal } from './dreadEngine'
 
 export interface Citation {
   id: string
@@ -132,4 +133,77 @@ const MITIGATION_CONTROLS: Record<string, ControlRef[]> = {
 export function controlsForMitigationType(mitigationType: string | undefined): ControlRef[] {
   if (!mitigationType) return []
   return MITIGATION_CONTROLS[mitigationType] ?? []
+}
+
+function complianceLabel(tags: Set<ComplianceTag>, pciScope: PciScope | undefined): string {
+  return [...tags]
+    .sort()
+    .map((t) => (t === 'PCI' && pciScope ? `PCI (${pciScope === 'CDE' ? 'Cardholder Data Environment' : 'Connected to CDE'})` : t))
+    .join(', ')
+}
+
+/** Formats a single threat as self-contained Markdown — title, target,
+ *  status, DREAD, compliance scope, description, citations, compensating
+ *  controls, resolution notes, and risk-acceptance sign-off, each section
+ *  only included when there's actually something to say. No API/credential
+ *  integration with any specific tracker (Jira, GitHub Issues, ...) — this
+ *  is meant to be pasted into whichever one the user actually uses, which
+ *  covers the same underlying need without needing to store a token for
+ *  one specific service (see PROJECT_STATUS.md for the scope discussion). */
+export function threatToMarkdown(
+  threat: Threat,
+  ctx: { componentName?: string; complianceTags?: Set<ComplianceTag>; pciScope?: PciScope; mitigationType?: string }
+): string {
+  const lines: string[] = []
+  lines.push(`## [${threat.category}] ${threat.title}`)
+  lines.push('')
+  lines.push(`- **Target:** ${threat.targetLabel}${ctx.componentName ? ` (${ctx.componentName})` : ''}`)
+  lines.push(`- **Status:** ${threat.status}`)
+
+  const total = dreadTotal(threat.dread)
+  const avg = dreadAverage(threat.dread)
+  if (total !== null && avg !== null) {
+    const d = threat.dread!
+    lines.push(
+      `- **DREAD:** Damage ${d.damage}, Reproducibility ${d.reproducibility}, Exploitability ${d.exploitability}, Affected Users ${d.affectedUsers}, Discoverability ${d.discoverability} — Total ${total}/50 (avg ${avg.toFixed(1)}, ${dreadRiskLevel(avg)})`
+    )
+  }
+
+  if (ctx.complianceTags && ctx.complianceTags.size > 0) {
+    lines.push(`- **Compliance scope:** ${complianceLabel(ctx.complianceTags, ctx.pciScope)}`)
+  }
+
+  lines.push('')
+  lines.push('### Description')
+  lines.push(threat.description)
+
+  const citations = citationsForThreat(threat)
+  if (citations.length > 0) {
+    lines.push('')
+    lines.push('### References')
+    for (const c of citations) lines.push(`- ${c.id} — ${c.name} (${c.url})`)
+  }
+
+  const controls = controlsForMitigationType(ctx.mitigationType)
+  if (controls.length > 0) {
+    lines.push('')
+    lines.push('### Compensating controls')
+    for (const c of controls) lines.push(`- ${c.framework} ${c.id} — ${c.name}`)
+  }
+
+  if (threat.notes) {
+    lines.push('')
+    lines.push('### Notes')
+    lines.push(threat.notes)
+  }
+
+  if (threat.status === 'accepted') {
+    lines.push('')
+    lines.push('### Risk acceptance')
+    if (threat.acceptedBy) lines.push(`- Accepted by: ${threat.acceptedBy}`)
+    if (threat.acceptedAt) lines.push(`- Accepted: ${new Date(threat.acceptedAt).toLocaleDateString()}`)
+    if (threat.reviewByDate) lines.push(`- Review by: ${threat.reviewByDate}`)
+  }
+
+  return lines.join('\n')
 }

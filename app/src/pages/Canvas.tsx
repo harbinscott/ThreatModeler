@@ -39,6 +39,7 @@ import { getDiagramMessages } from '../threats/diagnostics'
 import { ThreatModelInfoDialog } from '../components/ThreatModelInfoDialog'
 import { MessagesDialog } from '../components/MessagesDialog'
 import { NotesDialog } from '../components/NotesDialog'
+import { HistoryDialog } from '../components/HistoryDialog'
 import {
   IconArrowLeft,
   IconArrowBackUp,
@@ -50,6 +51,7 @@ import {
   IconChevronDown,
   IconChevronRight,
   IconLayoutGrid,
+  IconHistory,
 } from '@tabler/icons-react'
 import { SHAPE_LABELS, SHAPE_ICONS } from '../canvas/shapeMeta'
 import '../canvas/canvas.css'
@@ -63,6 +65,7 @@ import type {
   PastaData,
   PciScope,
   Project,
+  ProjectRevision,
   Threat,
   ThreatStatus,
 } from '../types/project'
@@ -79,6 +82,7 @@ const edgeTypes = { floating: FloatingEdge }
 const EMPTY_THREAT_MAP = new Map<string, Threat[]>()
 const EMPTY_COMPLIANCE_MAP = new Map<string, Set<ComplianceTag>>()
 const EMPTY_PCI_SCOPE_MAP = new Map<string, PciScope>()
+const MAX_REVISIONS = 10
 
 function makeNode(
   elementType: ElementType,
@@ -134,6 +138,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
   const [showInfoDialog, setShowInfoDialog] = useState(false)
   const [showMessagesDialog, setShowMessagesDialog] = useState(false)
   const [showNotesDialog, setShowNotesDialog] = useState(false)
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false)
   // Sub-diagram navigation (Release 8): breadcrumb[] is the path from the
   // top-level diagram down to whichever level is currently loaded into
   // nodes/edges/threats above — empty means the top level. Only the last
@@ -396,10 +401,48 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     if (!project) return
     setSaveState('saving')
     const committed = writeLevel(project, currentSubDiagramId, nodes, edges, threats)
-    const updated = await window.api.saveProject({ ...committed, pasta })
+    const fullState = { ...committed, pasta }
+    const revision: ProjectRevision = {
+      id: crypto.randomUUID(),
+      savedAt: new Date().toISOString(),
+      snapshot: {
+        diagram: fullState.diagram,
+        threats: fullState.threats,
+        pasta: fullState.pasta,
+        info: fullState.info,
+        notes: fullState.notes,
+        customStencils: fullState.customStencils,
+        subDiagrams: fullState.subDiagrams,
+      },
+    }
+    const revisionHistory = [revision, ...(fullState.revisionHistory ?? [])].slice(0, MAX_REVISIONS)
+    const revisionCount = (fullState.revisionCount ?? 0) + 1
+    const updated = await window.api.saveProject({ ...fullState, revisionHistory, revisionCount })
     setProject(updated)
     setSaveState('saved')
     setTimeout(() => setSaveState('idle'), 1500)
+  }
+
+  // Loads an old full-project snapshot back into the live editing state —
+  // always jumps to the top level (a restored sub-diagram's own breadcrumb
+  // trail doesn't necessarily still make sense) and resets undo history,
+  // same reasoning as sub-diagram level navigation. Deliberately does *not*
+  // save automatically — restoring only replaces what's being edited; the
+  // user still has to hit Save to make it the new persisted state, same as
+  // every other edit in this app, and until they do the previous revisions
+  // (including the one they're currently overwriting) are untouched.
+  function restoreRevision(revision: ProjectRevision) {
+    if (!project) return
+    const proceed = window.confirm(
+      `Restore the version saved ${new Date(revision.savedAt).toLocaleString()}? Your current unsaved changes, if any, will be discarded. You'll still need to click Save to keep this restored version.`
+    )
+    if (!proceed) return
+    const restoredProject: Project = { ...project, ...revision.snapshot }
+    setProject(restoredProject)
+    setBreadcrumb([])
+    loadLevelIntoState(restoredProject.diagram, restoredProject.threats)
+    setPasta(normalizePasta(restoredProject.pasta))
+    setShowHistoryDialog(false)
   }
 
   async function captureDiagramImage(): Promise<string | null> {
@@ -459,11 +502,21 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
   }
 
   function changeThreatStatus(id: string, status: ThreatStatus) {
-    setThreats((ts) => ts.map((t) => (t.id === id ? { ...t, status } : t)))
+    setThreats((ts) =>
+      ts.map((t) =>
+        t.id === id
+          ? { ...t, status, acceptedAt: status === 'accepted' && !t.acceptedAt ? new Date().toISOString() : t.acceptedAt }
+          : t
+      )
+    )
   }
 
   function changeThreatNotes(id: string, notes: string) {
     setThreats((ts) => ts.map((t) => (t.id === id ? { ...t, notes } : t)))
+  }
+
+  function changeThreatAcceptance(id: string, patch: Partial<Pick<Threat, 'acceptedBy' | 'reviewByDate'>>) {
+    setThreats((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)))
   }
 
   function changeThreatDread(id: string, dread: DreadScore) {
@@ -723,6 +776,14 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
             <button type="button" className="btn" onClick={onBack}>
               <IconArrowLeft size={15} aria-hidden="true" />
               Projects
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => setShowHistoryDialog(true)}
+              title="Version history — every save is kept as a restorable revision (last 10)"
+            >
+              <IconHistory size={15} aria-hidden="true" />v{project.revisionCount ?? 0}
             </button>
             {renamingProject ? (
               <input
@@ -1011,6 +1072,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
             onChangeStatus={changeThreatStatus}
             onChangeNotes={changeThreatNotes}
             onChangeDread={changeThreatDread}
+            onChangeAcceptance={changeThreatAcceptance}
             onDelete={deleteThreat}
           />
         </div>
@@ -1065,6 +1127,14 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
           notes={project.notes ?? ''}
           onChange={(notes) => updateProjectFields({ notes })}
           onClose={() => setShowNotesDialog(false)}
+        />
+      )}
+      {showHistoryDialog && (
+        <HistoryDialog
+          revisionCount={project.revisionCount ?? 0}
+          revisionHistory={project.revisionHistory ?? []}
+          onRestore={restoreRevision}
+          onClose={() => setShowHistoryDialog(false)}
         />
       )}
     </div>

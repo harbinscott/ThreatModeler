@@ -193,6 +193,18 @@ export interface Threat {
   dread?: DreadScore
   dreadBreakdown?: DreadContribution[]
   dreadNeedsReview?: boolean
+  /** Risk-acceptance sign-off — only meaningful while `status === 'accepted'`.
+   *  `acceptedAt` auto-stamps the first time status becomes 'accepted' and
+   *  is never overwritten afterward (so it records *when this was first
+   *  accepted*, not the last time the status field happened to read
+   *  'accepted' — reopening and re-accepting a threat doesn't erase that
+   *  history). `acceptedBy` is freeform text, same as every other
+   *  attribution field in this app (`ThreatModelInfo`'s owner/reviewer) —
+   *  there's no user-account system to attach a real identity to.
+   *  `reviewByDate` drives an overdue check in `diagnostics.ts`. */
+  acceptedBy?: string
+  acceptedAt?: string
+  reviewByDate?: string
   createdAt: string
 }
 
@@ -228,6 +240,26 @@ export interface SubDiagram {
   threats: Threat[]
 }
 
+/** A capped, full-state snapshot taken on every save (Release 9) — same
+ *  "full snapshot, not a diff" architecture `useDiagramHistory`'s undo stack
+ *  already uses, applied at the project level instead of just nodes/edges.
+ *  Everything that can change across a save except the revision history
+ *  itself (nesting it inside itself would grow unboundedly) and identity
+ *  fields (id/name/createdAt, which don't change per-save anyway). */
+export interface ProjectRevision {
+  id: string
+  savedAt: string
+  snapshot: {
+    diagram: Diagram
+    threats: Threat[]
+    pasta?: PastaData
+    info?: ThreatModelInfo
+    notes?: string
+    customStencils?: CustomStencil[]
+    subDiagrams?: Record<string, SubDiagram>
+  }
+}
+
 export interface Project {
   id: string
   name: string
@@ -243,6 +275,14 @@ export interface Project {
   customStencils?: CustomStencil[]
   /** Nested drill-down diagrams, keyed by id — see `SubDiagram`. */
   subDiagrams?: Record<string, SubDiagram>
+  /** Last `MAX_REVISIONS` (see Canvas.tsx) full-state snapshots, newest
+   *  first — restorable via the History dialog. Capped to avoid unbounded
+   *  project-file growth; `revisionCount` (below) keeps counting past the
+   *  cap so the toolbar badge reflects the true number of saves ever made. */
+  revisionHistory?: ProjectRevision[]
+  /** Total number of saves ever made, uncapped (unlike revisionHistory,
+   *  which only keeps the most recent few) — what the toolbar badge shows. */
+  revisionCount?: number
   createdAt: string
   updatedAt: string
 }

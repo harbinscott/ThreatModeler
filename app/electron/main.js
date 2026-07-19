@@ -52,6 +52,8 @@ ipcMain.handle('projects:get', async (_event, id) => {
   if (!project.threats) project.threats = []
   if (!project.pasta) project.pasta = {}
   if (!project.subDiagrams) project.subDiagrams = {}
+  if (!project.revisionHistory) project.revisionHistory = []
+  if (!project.revisionCount) project.revisionCount = 0
   return project
 })
 
