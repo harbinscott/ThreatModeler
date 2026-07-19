@@ -429,6 +429,27 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
   const complianceTagsByTarget = useMemo(() => computeEffectiveComplianceTags({ nodes, edges }), [nodes, edges])
   const pciScopeByTarget = useMemo(() => computeEffectivePciScope({ nodes, edges }), [nodes, edges])
 
+  // Target id -> mitigation stencil type, for the Threats tab's "Compensating
+  // controls" block (Release 7) — a mitigation node itself, plus any edge it
+  // directly feeds (traffic that has passed through it), same "source node's
+  // attrs benefit the downstream edge" relationship dreadEngine.ts's
+  // mitigationContributions() uses.
+  const mitigationTypeByTarget = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const n of nodes) {
+      if (n.data.elementType === 'mitigation') {
+        map.set(n.id, (n.data.attributes?.mitigationType as string) ?? 'Generic Mitigation Control')
+      }
+    }
+    for (const e of edges) {
+      const source = nodes.find((n) => n.id === e.source)
+      if (source?.data.elementType === 'mitigation') {
+        map.set(e.id, (source.data.attributes?.mitigationType as string) ?? 'Generic Mitigation Control')
+      }
+    }
+    return map
+  }, [nodes, edges])
+
   function viewThreatOnCanvas(id: string) {
     setFocusThreatId(id)
     setView('threats')
@@ -836,6 +857,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
             customStencils={project?.customStencils ?? []}
             complianceTagsByTarget={complianceTagsByTarget}
             pciScopeByTarget={pciScopeByTarget}
+            mitigationTypeByTarget={mitigationTypeByTarget}
             focusThreatId={focusThreatId}
             onChangeStatus={changeThreatStatus}
             onChangeNotes={changeThreatNotes}

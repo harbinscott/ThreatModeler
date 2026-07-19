@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import path from 'node:path'
 import os from 'node:os'
 import fs from 'node:fs/promises'
@@ -142,6 +142,16 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
+  })
+
+  // Only reference links opened via target="_blank" (the Threats tab's
+  // CAPEC/CWE citations, Release 7) trigger this — everything else in the
+  // app navigates in place. Without it, window.open() either does nothing
+  // or opens an unstyled second Electron window; this sends it to the
+  // user's actual browser instead and blocks the in-app popup either way.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://')) shell.openExternal(url)
+    return { action: 'deny' }
   })
 
   if (DEV_SERVER_URL) {

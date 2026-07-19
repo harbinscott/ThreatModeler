@@ -5,6 +5,7 @@ import { findStencil } from '../canvas/stencils'
 import { COMPLIANCE_TAG_COLOR, COMPLIANCE_TAG_LABELS } from '../canvas/complianceTags'
 import { useResizablePanel } from '../canvas/useResizablePanel'
 import { dreadAverage, dreadRiskLevel, dreadTotal, DREAD_RISK_COLOR } from './dreadEngine'
+import { citationsForThreat, controlsForMitigationType } from './threatIntel'
 import './ThreatsPanel.css'
 
 interface ThreatsPanelProps {
@@ -22,6 +23,12 @@ interface ThreatsPanelProps {
    *  straight to that threat's detail panel, bypassing whatever filters are
    *  active. */
   focusThreatId?: string | null
+  /** Target id -> mitigation stencil type ('Firewall'/'WAF'/'IDS/IPS'/...),
+   *  for a mitigation node itself and for any edge whose *source* is one —
+   *  drives the "Compensating controls" block via controlsForMitigationType.
+   *  A thin derived map like complianceTagsByTarget, not a full diagram
+   *  prop, matching this panel's established pattern. */
+  mitigationTypeByTarget?: Map<string, string>
   onChangeStatus: (id: string, status: ThreatStatus) => void
   onChangeNotes: (id: string, notes: string) => void
   onChangeDread: (id: string, dread: DreadScore) => void
@@ -30,6 +37,7 @@ interface ThreatsPanelProps {
 
 const EMPTY_COMPLIANCE_TAGS = new Map<string, Set<ComplianceTag>>()
 const EMPTY_PCI_SCOPE = new Map<string, PciScope>()
+const EMPTY_MITIGATION_TYPES = new Map<string, string>()
 
 function complianceChipLabel(tag: ComplianceTag, pciScope: PciScope | undefined): string {
   return tag === 'PCI' && pciScope ? `PCI · ${pciScope}` : tag
@@ -147,6 +155,7 @@ export function ThreatsPanel({
   customStencils = [],
   complianceTagsByTarget = EMPTY_COMPLIANCE_TAGS,
   pciScopeByTarget = EMPTY_PCI_SCOPE,
+  mitigationTypeByTarget = EMPTY_MITIGATION_TYPES,
   focusThreatId,
   onChangeStatus,
   onChangeNotes,
@@ -331,6 +340,42 @@ export function ThreatsPanel({
             <span className="threats-detail__label">Description</span>
             <p>{selected.description}</p>
           </div>
+
+          <div className="threats-detail__field">
+            <span className="threats-detail__label" title="Curated, not exhaustive — verify against the current MITRE CAPEC/CWE publications before citing in a formal deliverable.">
+              References
+            </span>
+            <div className="threats-detail__citations">
+              {citationsForThreat(selected).map((c) => (
+                <a key={c.id} href={c.url} target="_blank" rel="noopener noreferrer" className="threats-detail__citation" title={c.name}>
+                  {c.id}
+                </a>
+              ))}
+            </div>
+          </div>
+
+          {(() => {
+            const mitigationType = mitigationTypeByTarget.get(selected.targetId)
+            const controls = controlsForMitigationType(mitigationType)
+            if (controls.length === 0) return null
+            return (
+              <div className="threats-detail__field">
+                <span
+                  className="threats-detail__label"
+                  title="Coarse, per control-type mapping — verify against the current framework publications before citing in a formal deliverable."
+                >
+                  Compensating controls
+                </span>
+                <div className="threats-detail__citations">
+                  {controls.map((c) => (
+                    <span key={`${c.framework}-${c.id}`} className="threats-detail__citation threats-detail__citation--control" title={c.name}>
+                      {c.framework} {c.id}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
 
           {dreadEnabled && (
             <div className="threats-detail__field threats-dread">

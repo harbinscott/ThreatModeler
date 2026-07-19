@@ -197,6 +197,32 @@
   padding: 0.1rem 0.5rem;
 }
 
+.threats-detail__citations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.threats-detail__citation {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface-active);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  text-decoration: none;
+}
+
+a.threats-detail__citation:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.threats-detail__citation--control {
+  cursor: default;
+}
+
 .threats-dread {
   border: 1px solid var(--border);
   border-radius: 8px;
