@@ -136,6 +136,38 @@ ipcMain.handle('reports:export-pdf', async (event, { html, suggestedName }) => {
   return { canceled: false, filePath }
 })
 
+ipcMain.handle('reports:export-csv', async (event, { csv, suggestedName }) => {
+  const parentWindow = BrowserWindow.fromWebContents(event.sender)
+  const { canceled, filePath } = await dialog.showSaveDialog(parentWindow, {
+    title: 'Export Threats CSV',
+    defaultPath: suggestedName,
+    filters: [{ name: 'CSV', extensions: ['csv'] }],
+  })
+  if (canceled || !filePath) return { canceled: true }
+  await fs.writeFile(filePath, csv, 'utf-8')
+  return { canceled: false, filePath }
+})
+
+ipcMain.handle('reports:export-image', async (event, { dataUrl, format, suggestedName }) => {
+  const parentWindow = BrowserWindow.fromWebContents(event.sender)
+  const { canceled, filePath } = await dialog.showSaveDialog(parentWindow, {
+    title: 'Export Diagram',
+    defaultPath: suggestedName,
+    filters: [{ name: format === 'svg' ? 'SVG Image' : 'PNG Image', extensions: [format] }],
+  })
+  if (canceled || !filePath) return { canceled: true }
+  if (format === 'svg') {
+    // toSvg() data URLs are percent-encoded UTF-8 text, not base64 — write
+    // the decoded markup directly rather than treating it as binary.
+    const encoded = dataUrl.replace(/^data:image\/svg\+xml(;charset=utf-8)?,/, '')
+    await fs.writeFile(filePath, decodeURIComponent(encoded), 'utf-8')
+  } else {
+    const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
+    await fs.writeFile(filePath, Buffer.from(base64, 'base64'))
+  }
+  return { canceled: false, filePath }
+})
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,

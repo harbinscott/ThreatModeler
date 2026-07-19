@@ -1,4 +1,5 @@
 import type { Project, StrideCategory, Threat, ThreatStatus } from '../types/project'
+import { dreadAverage, dreadRiskLevel, dreadTotal, hasMitigationCredit, inherentDreadScore, DREAD_RISK_COLOR } from '../threats/dreadEngine'
 
 export type ReportVariant = 'summary' | 'detailed'
 
@@ -68,7 +69,25 @@ function frameworkBadges(project: Project): string {
   return list.map((f) => `<span class="badge">${f}</span>`).join('')
 }
 
-function threatRows(threats: Threat[], includeDescription: boolean): string {
+/** Residual score (and, when a mitigation is actually giving credit,
+ *  inherent-without-it too — see dreadEngine.ts's inherentDreadScore) for
+ *  one threat's report row. Empty cell when the threat has no score yet
+ *  (DREAD is opt-in per project and not every threat gets reviewed
+ *  immediately). */
+function dreadCell(t: Threat): string {
+  const total = dreadTotal(t.dread)
+  const avg = dreadAverage(t.dread)
+  if (total === null || avg === null) return '<td>—</td>'
+  const level = dreadRiskLevel(avg)
+  let html = `<div>${total}/50 <span style="color:${DREAD_RISK_COLOR[level]};font-weight:700">${level}</span></div>`
+  if (hasMitigationCredit(t)) {
+    const inherentTotal = dreadTotal(inherentDreadScore(t) ?? undefined)
+    if (inherentTotal !== null) html += `<div class="desc" style="font-size:10px">Inherent: ${inherentTotal}/50</div>`
+  }
+  return `<td>${html}</td>`
+}
+
+function threatRows(threats: Threat[], includeDescription: boolean, showDread: boolean): string {
   return threats
     .map(
       (t) => `
@@ -81,6 +100,7 @@ function threatRows(threats: Threat[], includeDescription: boolean): string {
         </td>
         <td>${escapeHtml(t.targetLabel)}</td>
         <td class="status-${t.status}">${STATUS_LABELS[t.status]}</td>
+        ${showDread ? dreadCell(t) : ''}
       </tr>`
     )
     .join('')
@@ -130,8 +150,8 @@ export function buildReportHtml(project: Project, variant: ReportVariant, diagra
       ${diagramHtml}
       <h2>Open Risks</h2>
       <table>
-        <thead><tr><th>Category</th><th>Threat</th><th>Target</th><th>Status</th></tr></thead>
-        <tbody>${threatRows(openThreats, false)}</tbody>
+        <thead><tr><th>Category</th><th>Threat</th><th>Target</th><th>Status</th>${project.frameworks.dread ? '<th>Risk</th>' : ''}</tr></thead>
+        <tbody>${threatRows(openThreats, false, project.frameworks.dread)}</tbody>
       </table>
       <div class="footer">ThreatModeler — Executive Summary Report</div>
     </body></html>`
@@ -170,8 +190,8 @@ export function buildReportHtml(project: Project, variant: ReportVariant, diagra
     ${statsHtml}
     <h2>All Threats</h2>
     <table>
-      <thead><tr><th>Category</th><th>Threat</th><th>Target</th><th>Status</th></tr></thead>
-      <tbody>${threatRows(threats, true)}</tbody>
+      <thead><tr><th>Category</th><th>Threat</th><th>Target</th><th>Status</th>${project.frameworks.dread ? '<th>Risk</th>' : ''}</tr></thead>
+      <tbody>${threatRows(threats, true, project.frameworks.dread)}</tbody>
     </table>
     <div class="footer">ThreatModeler — Detailed Report</div>
   </body></html>`

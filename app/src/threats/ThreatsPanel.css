@@ -46,6 +46,89 @@
   color: var(--text-muted);
 }
 
+.threats-filters__view-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.threats-view-btn {
+  background: var(--surface);
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+}
+
+.threats-view-btn--active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.threats-filters__export {
+  font-size: 0.72rem;
+  padding: 0.3rem 0.6rem;
+}
+
+.threats-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.6rem;
+}
+
+.threats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.threats-table th {
+  text-align: left;
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.threats-table__sort {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  padding: 0;
+}
+
+.threats-table__sort:hover {
+  color: var(--text);
+}
+
+.threats-table td {
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.threats-table__row {
+  cursor: pointer;
+}
+
+.threats-table__row:hover {
+  background: var(--surface);
+}
+
+.threats-table__row--selected {
+  background: var(--surface-active);
+}
+
+.threats-table__row--resolved {
+  opacity: 0.55;
+}
+
 .threats-list {
   flex: 1;
   min-width: 0;
@@ -390,6 +473,13 @@ a.threats-detail__citation:hover {
 
 .threats-dread__total strong {
   color: var(--text);
+}
+
+.threats-dread__total--inherent {
+  border-top: none;
+  padding-top: 0;
+  font-size: 0.75rem;
+  opacity: 0.85;
 }
 
 .threats-dread__incomplete {

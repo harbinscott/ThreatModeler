@@ -4,7 +4,7 @@ import type { ComplianceTag, CustomStencil, DreadContribution, DreadScore, PciSc
 import { findStencil } from '../canvas/stencils'
 import { COMPLIANCE_TAG_COLOR, COMPLIANCE_TAG_LABELS } from '../canvas/complianceTags'
 import { useResizablePanel } from '../canvas/useResizablePanel'
-import { dreadAverage, dreadRiskLevel, dreadTotal, DREAD_RISK_COLOR } from './dreadEngine'
+import { dreadAverage, dreadRiskLevel, dreadTotal, hasMitigationCredit, inherentDreadScore, DREAD_RISK_COLOR, type DreadRiskLevel } from './dreadEngine'
 import { citationsForThreat, controlsForMitigationType, threatToMarkdown } from './threatIntel'
 import './ThreatsPanel.css'
 
@@ -38,6 +38,11 @@ interface ThreatsPanelProps {
    *  'accepted'. */
   onChangeAcceptance: (id: string, patch: Partial<Pick<Threat, 'acceptedBy' | 'reviewByDate'>>) => void
   onDelete: (id: string) => void
+  /** Release 11 — exports whatever the current filters/sort produced (not
+   *  necessarily every threat in the project), so "export all Critical PCI
+   *  threats" is just "filter, then click export." File save itself goes
+   *  through Canvas.tsx/the main process, same as every other export. */
+  onExportCsv?: (threats: Threat[]) => void
 }
 
 const EMPTY_COMPLIANCE_TAGS = new Map<string, Set<ComplianceTag>>()
@@ -58,6 +63,31 @@ const DREAD_FIELDS: { key: keyof DreadScore; label: string; hint: string }[] = [
 
 const STATUS_OPTIONS: ThreatStatus[] = ['open', 'mitigated', 'accepted', 'false-positive']
 const CATEGORY_OPTIONS: StrideCategory[] = ['S', 'T', 'R', 'I', 'D', 'E']
+const RISK_OPTIONS: DreadRiskLevel[] = ['Low', 'Medium', 'High', 'Critical']
+
+type SortKey = 'category' | 'title' | 'target' | 'status' | 'risk'
+const SORT_COLUMNS: { key: SortKey; label: string }[] = [
+  { key: 'category', label: 'Cat' },
+  { key: 'title', label: 'Threat' },
+  { key: 'target', label: 'Target' },
+  { key: 'status', label: 'Status' },
+  { key: 'risk', label: 'Risk' },
+]
+
+function compareThreats(a: Threat, b: Threat, key: SortKey): number {
+  switch (key) {
+    case 'category':
+      return a.category.localeCompare(b.category)
+    case 'title':
+      return a.title.localeCompare(b.title)
+    case 'target':
+      return a.targetLabel.localeCompare(b.targetLabel)
+    case 'status':
+      return a.status.localeCompare(b.status)
+    case 'risk':
+      return (dreadAverage(a.dread) ?? -1) - (dreadAverage(b.dread) ?? -1)
+  }
+}
 
 const CATEGORY_COLOR: Record<string, string> = {
   S: '#f472b6',
@@ -167,12 +197,22 @@ export function ThreatsPanel({
   onChangeDread,
   onChangeAcceptance,
   onDelete,
+  onExportCsv,
 }: ThreatsPanelProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [statusFilter, setStatusFilter] = useState<ThreatStatus | 'all'>('all')
   const [categoryFilter, setCategoryFilter] = useState<StrideCategory | 'all'>('all')
   const [typeFilter, setTypeFilter] = useState<string>('all')
+  const [complianceFilter, setComplianceFilter] = useState<ComplianceTag | 'all'>('all')
+  const [riskFilter, setRiskFilter] = useState<DreadRiskLevel | 'all'>('all')
+  // Release 11 — a sortable risk-register grid alongside the original
+  // list+detail view, not a replacement for it: the detail panel (right)
+  // stays visible and working the same way in both modes, only what's on
+  // the left switches.
+  const [viewMode, setViewMode] = useState<'list' | 'table'>('list')
+  const [sortKey, setSortKey] = useState<SortKey>('category')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const { size: detailWidth, startDrag } = useResizablePanel({ axis: 'x', initial: 340, min: 280, maxMargin: 260 })
 
   useEffect(() => {
@@ -183,6 +223,15 @@ export function ThreatsPanel({
     const ids = new Set(threats.map((t) => t.componentType).filter((x): x is string => Boolean(x)))
     return [...ids]
   }, [threats])
+
+  const availableComplianceTags = useMemo(() => {
+    const tags = new Set<ComplianceTag>()
+    for (const t of threats) {
+      const ts = complianceTagsByTarget.get(t.targetId)
+      if (ts) for (const tag of ts) tags.add(tag)
+    }
+    return [...tags].sort()
+  }, [threats, complianceTagsByTarget])
 
   if (threats.length === 0) {
     return (
@@ -196,11 +245,31 @@ export function ThreatsPanel({
     if (statusFilter !== 'all' && t.status !== statusFilter) return false
     if (categoryFilter !== 'all' && t.category !== categoryFilter) return false
     if (typeFilter !== 'all' && t.componentType !== typeFilter) return false
+    if (complianceFilter !== 'all' && !complianceTagsByTarget.get(t.targetId)?.has(complianceFilter)) return false
+    if (riskFilter !== 'all') {
+      const avg = dreadAverage(t.dread)
+      if (avg === null || dreadRiskLevel(avg) !== riskFilter) return false
+    }
     return true
   })
-  const sorted = [...filtered].sort((a, b) => a.category.localeCompare(b.category))
+  const sorted =
+    viewMode === 'table'
+      ? [...filtered].sort((a, b) => {
+          const cmp = compareThreats(a, b, sortKey)
+          return sortDir === 'asc' ? cmp : -cmp
+        })
+      : [...filtered].sort((a, b) => a.category.localeCompare(b.category))
   const selected = threats.find((t) => t.id === selectedId) ?? null
   const dreadBreakdown: DreadContribution[] = selected?.dreadBreakdown ?? []
+
+  function toggleSort(key: SortKey) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
 
   function copySelectedAsMarkdown() {
     if (!selected) return
@@ -248,10 +317,119 @@ export function ThreatsPanel({
               ))}
             </select>
           )}
+          {availableComplianceTags.length > 0 && (
+            <select value={complianceFilter} onChange={(e) => setComplianceFilter(e.target.value as ComplianceTag | 'all')}>
+              <option value="all">All compliance</option>
+              {availableComplianceTags.map((tag) => (
+                <option key={tag} value={tag}>
+                  {COMPLIANCE_TAG_LABELS[tag]}
+                </option>
+              ))}
+            </select>
+          )}
+          {dreadEnabled && (
+            <select value={riskFilter} onChange={(e) => setRiskFilter(e.target.value as DreadRiskLevel | 'all')}>
+              <option value="all">All risk levels</option>
+              {RISK_OPTIONS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          )}
           <span className="threats-filters__count">
             {filtered.length} of {threats.length}
           </span>
+          <div className="threats-filters__view-toggle">
+            <button
+              type="button"
+              className={`threats-view-btn${viewMode === 'list' ? ' threats-view-btn--active' : ''}`}
+              onClick={() => setViewMode('list')}
+            >
+              List
+            </button>
+            <button
+              type="button"
+              className={`threats-view-btn${viewMode === 'table' ? ' threats-view-btn--active' : ''}`}
+              onClick={() => setViewMode('table')}
+            >
+              Table
+            </button>
+          </div>
+          {onExportCsv && (
+            <button type="button" className="btn threats-filters__export" onClick={() => onExportCsv(filtered)} title="Export the currently filtered threats as CSV">
+              Export CSV
+            </button>
+          )}
         </div>
+        {viewMode === 'table' ? (
+          <div className="threats-table-wrap">
+            <table className="threats-table">
+              <thead>
+                <tr>
+                  {SORT_COLUMNS.map((col) => (
+                    <th key={col.key}>
+                      <button type="button" className="threats-table__sort" onClick={() => toggleSort(col.key)}>
+                        {col.label}
+                        {sortKey === col.key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                      </button>
+                    </th>
+                  ))}
+                  <th>Compliance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((t) => {
+                  const avg = dreadAverage(t.dread)
+                  const level = dreadEnabled && avg !== null ? dreadRiskLevel(avg) : null
+                  const tags = complianceTagsByTarget.get(t.targetId)
+                  return (
+                    <tr
+                      key={t.id}
+                      className={`threats-table__row${t.id === selectedId ? ' threats-table__row--selected' : ''}${t.status !== 'open' ? ' threats-table__row--resolved' : ''}`}
+                      onClick={() => setSelectedId(t.id)}
+                    >
+                      <td>
+                        <span className="threats-category" style={{ color: CATEGORY_COLOR[t.category] }}>
+                          {t.category}
+                        </span>
+                      </td>
+                      <td>{t.title}</td>
+                      <td>{t.targetLabel}</td>
+                      <td>
+                        <span className={`threats-status-pill threats-status-pill--${t.status}`}>{t.status}</span>
+                      </td>
+                      <td>{level && <span style={{ color: DREAD_RISK_COLOR[level], fontWeight: 700 }}>{level}</span>}</td>
+                      <td>
+                        {tags && tags.size > 0 && (
+                          <span className="threats-row__compliance">
+                            {[...tags]
+                              .sort()
+                              .map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="threats-row__compliance-dot"
+                                  style={{ background: COMPLIANCE_TAG_COLOR[tag] }}
+                                  title={COMPLIANCE_TAG_LABELS[tag]}
+                                />
+                              ))}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+                {sorted.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="threats-list__empty">
+                      No threats match these filters.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
         <div className="threats-list">
           {sorted.map((t) => (
             <button
@@ -304,6 +482,7 @@ export function ThreatsPanel({
           ))}
           {sorted.length === 0 && <p className="threats-list__empty">No threats match these filters.</p>}
         </div>
+        )}
       </div>
 
       <div className="threats-splitter" onMouseDown={startDrag} />
@@ -434,6 +613,20 @@ export function ThreatsPanel({
                   </p>
                 )
               })()}
+              {hasMitigationCredit(selected) &&
+                (() => {
+                  const inherent = inherentDreadScore(selected)
+                  const iTotal = dreadTotal(inherent ?? undefined)
+                  const iAvg = dreadAverage(inherent ?? undefined)
+                  if (iTotal === null || iAvg === null) return null
+                  const iLevel = dreadRiskLevel(iAvg)
+                  return (
+                    <p className="threats-dread__total threats-dread__total--inherent" title="What this score would be with no mitigation credit applied">
+                      Inherent (no mitigations) <strong>{iTotal}</strong>/50 — avg {iAvg.toFixed(1)} —{' '}
+                      <span style={{ color: DREAD_RISK_COLOR[iLevel] }}>{iLevel}</span>
+                    </p>
+                  )
+                })()}
             </div>
           )}
 

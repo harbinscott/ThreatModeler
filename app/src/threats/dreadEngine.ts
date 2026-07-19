@@ -247,6 +247,33 @@ export function suggestDreadScore(threat: Threat, diagram: Diagram): DreadScore 
   return score
 }
 
+/** What a threat's DREAD score would be with no mitigation credit applied —
+ *  every contribution in the frozen breakdown except the negative
+ *  (mitigation-driven) ones. `threat.dread` is already the *residual*
+ *  score (mitigations included); this is the "before" number to show next
+ *  to it (Release 11). Derived from the already-frozen `dreadBreakdown`,
+ *  not recomputed against the live diagram — same reasoning as the DREAD
+ *  breakdown persistence fix above: a threat's numbers should always
+ *  explain themselves against what was frozen, not silently drift with
+ *  later diagram edits. */
+export function inherentDreadScore(threat: Threat): DreadScore | null {
+  if (!threat.dreadBreakdown || threat.dreadBreakdown.length === 0) return null
+  const score = {} as DreadScore
+  for (const key of DREAD_KEYS) {
+    const total = threat.dreadBreakdown.filter((c) => c.key === key && c.amount >= 0).reduce((sum, c) => sum + c.amount, 0)
+    score[key] = clamp(total)
+  }
+  return score
+}
+
+/** Whether at least one mitigation-driven reduction is present in the
+ *  breakdown — gates whether the inherent number is worth showing at all.
+ *  Most threats have no mitigation on their flow, so inherent === residual
+ *  and a second identical number would just be noise, not information. */
+export function hasMitigationCredit(threat: Threat): boolean {
+  return (threat.dreadBreakdown ?? []).some((c) => c.amount < 0)
+}
+
 export function dreadTotal(score?: DreadScore): number | null {
   if (!score) return null
   const values = DREAD_KEYS.map((k) => score[k])

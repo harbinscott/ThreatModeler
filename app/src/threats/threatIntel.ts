@@ -216,3 +216,64 @@ export function threatToMarkdown(
 
   return lines.join('\n')
 }
+
+function csvField(value: string): string {
+  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+}
+
+/** CSV export of a threat list (Release 11) — same "feed an existing GRC/
+ *  audit spreadsheet, don't invent a new destination" posture as Copy as
+ *  Markdown: no credentials, no network calls, just a structured file the
+ *  caller already has a save flow for (see reports:export-csv in
+ *  electron/main.js). Exports whatever list it's given — the Threats tab
+ *  passes its currently *filtered* threats, not necessarily every threat in
+ *  the project, so "export all Critical PCI threats" is just "filter, then
+ *  export." */
+export function threatsToCsv(
+  threats: Threat[],
+  ctx: { complianceTagsByTarget?: Map<string, Set<ComplianceTag>>; pciScopeByTarget?: Map<string, PciScope> } = {}
+): string {
+  const headers = [
+    'Category',
+    'Title',
+    'Target',
+    'Status',
+    'Damage',
+    'Reproducibility',
+    'Exploitability',
+    'AffectedUsers',
+    'Discoverability',
+    'Total',
+    'Average',
+    'RiskLevel',
+    'Compliance',
+    'Notes',
+  ]
+  const rows = threats.map((t) => {
+    const d = t.dread
+    const total = dreadTotal(d)
+    const avg = dreadAverage(d)
+    const level = avg !== null ? dreadRiskLevel(avg) : ''
+    const tags = ctx.complianceTagsByTarget?.get(t.targetId)
+    const compliance = tags && tags.size > 0 ? complianceLabel(tags, ctx.pciScopeByTarget?.get(t.targetId)) : ''
+    return [
+      t.category,
+      t.title,
+      t.targetLabel,
+      t.status,
+      d?.damage ?? '',
+      d?.reproducibility ?? '',
+      d?.exploitability ?? '',
+      d?.affectedUsers ?? '',
+      d?.discoverability ?? '',
+      total ?? '',
+      avg !== null ? avg.toFixed(1) : '',
+      level,
+      compliance,
+      t.notes ?? '',
+    ]
+      .map((v) => csvField(String(v)))
+      .join(',')
+  })
+  return [headers.join(','), ...rows].join('\n')
+}

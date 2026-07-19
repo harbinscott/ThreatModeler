@@ -14,6 +14,12 @@ declare global {
       ) => Promise<{ canceled: boolean; filePath?: string }>
       exportProjectFile: (project: Project) => Promise<{ canceled: boolean; filePath?: string }>
       importProjectFile: () => Promise<{ canceled: boolean; project?: Project }>
+      exportThreatsCsv: (csv: string, suggestedName: string) => Promise<{ canceled: boolean; filePath?: string }>
+      exportDiagramImage: (
+        dataUrl: string,
+        format: 'png' | 'svg',
+        suggestedName: string
+      ) => Promise<{ canceled: boolean; filePath?: string }>
     }
   }
 }

@@ -11,7 +11,7 @@ import {
   type Connection,
   type OnNodeDrag,
 } from '@xyflow/react'
-import { toPng } from 'html-to-image'
+import { toPng, toSvg } from 'html-to-image'
 import '@xyflow/react/dist/style.css'
 import { nodeTypes } from '../canvas/nodeTypes'
 import { FloatingEdge } from '../canvas/FloatingEdge'
@@ -19,6 +19,7 @@ import { Inspector } from '../canvas/Inspector'
 import { DEFAULT_EDGE_DATA, edgeVisualProps } from '../canvas/edgeStyle'
 import { ThreatsPanel } from '../threats/ThreatsPanel'
 import { generateThreats, mergeThreats } from '../threats/ruleEngine'
+import { threatsToCsv } from '../threats/threatIntel'
 import { suggestDreadScore, explainDreadScore, dreadAverage, dreadRiskLevel, DREAD_RISK_COLOR, type DreadRiskLevel } from '../threats/dreadEngine'
 import { ShapeButton } from '../canvas/ShapeButton'
 import { TrustBoundaryButton, type BoundaryShapePreset } from '../canvas/TrustBoundaryButton'
@@ -445,21 +446,22 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     setShowHistoryDialog(false)
   }
 
-  async function captureDiagramImage(): Promise<string | null> {
+  async function captureDiagramImage(format: 'png' | 'svg' = 'png'): Promise<string | null> {
     if (nodes.length === 0) return null
     const el = document.querySelector('.react-flow') as HTMLElement | null
     if (!el) return null
     fitView({ padding: 0.15, duration: 0 })
     await new Promise((r) => setTimeout(r, 150))
+    const opts = {
+      backgroundColor: '#0f172a',
+      filter: (node: HTMLElement) => {
+        const cls = node.classList
+        if (!cls) return true
+        return !cls.contains('react-flow__controls') && !cls.contains('react-flow__attribution')
+      },
+    }
     try {
-      return await toPng(el, {
-        backgroundColor: '#0f172a',
-        filter: (node) => {
-          const cls = (node as HTMLElement).classList
-          if (!cls) return true
-          return !cls.contains('react-flow__controls') && !cls.contains('react-flow__attribution')
-        },
-      })
+      return format === 'svg' ? await toSvg(el, opts) : await toPng(el, opts)
     } catch {
       return null
     }
@@ -469,13 +471,39 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     if (!project) return
     setExporting(true)
     try {
-      const diagramImage = await captureDiagramImage()
+      const diagramImage = await captureDiagramImage('png')
       const html = buildReportHtml({ ...project, diagram: { nodes, edges }, threats }, variant, diagramImage)
       const safeName = project.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
       await window.api.exportReportPdf(html, `${safeName}-${variant}.pdf`)
     } finally {
       setExporting(false)
     }
+  }
+
+  /** Standalone diagram export (Release 11) — the same capture
+   *  `captureDiagramImage` already does for the PDF's embedded screenshot,
+   *  just saved directly instead of wrapped in a report. */
+  async function handleExportImage(format: 'png' | 'svg') {
+    if (!project) return
+    setExporting(true)
+    try {
+      const dataUrl = await captureDiagramImage(format)
+      if (!dataUrl) return
+      const safeName = project.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+      await window.api.exportDiagramImage(dataUrl, format, `${safeName}-diagram.${format}`)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  /** Threats tab's "Export CSV" (Release 11) — exports whatever list the
+   *  panel hands back (its currently filtered threats, not necessarily
+   *  every threat in the project). */
+  function handleExportThreatsCsv(list: Threat[]) {
+    if (!project) return
+    const csv = threatsToCsv(list, { complianceTagsByTarget, pciScopeByTarget })
+    const safeName = project.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+    window.api.exportThreatsCsv(csv, `${safeName}-threats.csv`)
   }
 
   function handleRegenerateThreats() {
@@ -886,7 +914,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
               Notes
             </button>
             <span className="canvas-toolbar__divider" />
-            <ExportMenu onExport={handleExport} exporting={exporting} />
+            <ExportMenu onExport={handleExport} onExportImage={handleExportImage} exporting={exporting} />
             <button type="button" className="btn btn--primary" onClick={handleSave} disabled={saveState === 'saving'}>
               <IconDeviceFloppy size={15} aria-hidden="true" />
               {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved ✓' : 'Save'}
@@ -1074,6 +1102,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
             onChangeDread={changeThreatDread}
             onChangeAcceptance={changeThreatAcceptance}
             onDelete={deleteThreat}
+            onExportCsv={handleExportThreatsCsv}
           />
         </div>
       )}

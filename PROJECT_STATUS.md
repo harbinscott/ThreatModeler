@@ -51,14 +51,26 @@ obvious from the code alone.
    "What's built" for the full writeup. **Next up: Release 11 — Reporting
    & Risk Register Enhancements** (scoped, not started) — see "Release
    roadmap" below for the full scope.
-4. **Release 11 — Reporting & Risk Register Enhancements** (renumbered
-   from 10 to make room for the above; scoped, still not built):
-   inherent-vs-residual DREAD scores, sub-diagrams included in PDF export
-   with a header per level, a Threats risk-register table view, CSV
-   export, compliance/DREAD-risk filters on the Threats tab, and
-   standalone diagram PNG/SVG export. See "Release roadmap" below for the
-   full scoping notes, including the sub-diagram PDF capture
-   implementation wrinkle already flagged there.
+4. **Release 11 — Reporting & Risk Register Enhancements — stages A-E done
+   and verified, stage F (sub-diagrams in PDF export) is what's next.**
+   Done: inherent-vs-residual DREAD scores (Threats tab detail view + both
+   PDF variants), compliance-tag and DREAD-risk-level filters, CSV export
+   of the currently-filtered threat list, standalone diagram export
+   (PNG/SVG), and a sortable Table view alongside the original list+detail
+   layout. See "Reporting & risk register enhancements, stages A-E
+   (Release 11)" under "What's built" for the full writeup — including a
+   live debugging session (see that section) that turned out to be a real
+   user workflow gap, not a code bug: diagram edits (like splicing a
+   mitigation onto a flow) don't auto-refresh threats, so a newly-spliced
+   edge shows zero threats — and any DREAD-frozen threat stays frozen —
+   until "Regenerate Threats" is clicked again. Logged as Backlog item 6
+   (a UI nudge for this) per the user's own suggestion after hitting it
+   live. **Not yet built**: sub-diagrams included in PDF export with a
+   header per level — see "Release roadmap" below for the scoping notes,
+   including the implementation wrinkle already flagged there (only one
+   diagram level is ever mounted at a time, so capturing every level needs
+   driving navigation programmatically and restoring the user's original
+   position when done).
 5. **Release 13 — Requirements Gap Coverage** (new this session, scoped
    from the requirements-doc comparison, not built): MITRE ATT&CK citations
    alongside the existing CAPEC/CWE ones, control verification states
@@ -90,12 +102,14 @@ obvious from the code alone.
    roadmap rather than built immediately: an unsaved-changes guard (warn
    before navigating away from an edited-but-unsaved diagram) — Backlog
    item 1 below, small and a real data-safety gap. Not started.
-9. Three small backlog items remain, all low priority, none blocking:
+9. Four small backlog items remain, all low priority, none blocking:
    trust boundary shape editing *after* creation (currently creation-time
-   only), further parallel-edge endpoint visual polish, and Tidy Up layout
+   only), further parallel-edge endpoint visual polish, Tidy Up layout
    *quality* (edge-length minimization, horizontal/left-to-right default
-   orientation — new this session, explicitly scoped as polish, distinct
-   from the correctness bug fixed in item 1 above). See Backlog below.
+   orientation — explicitly scoped as polish, distinct from the correctness
+   bug fixed in item 1 above), and a "threats may be stale" reminder after
+   diagram changes (found live during Release 11 testing). See Backlog
+   below.
 10. Everything is committed and pushed to
     `https://github.com/harbinscott/ThreatModeler` (`main` branch) as of
     the end of this session, including the Tidy Up bugfix and the
@@ -789,6 +803,98 @@ authoritative source, which confirmed "V4: API and Web Service." Not
 evidence the standard renumbered again since Release 7, just a reminder
 that even "live" search results can disagree with each other, so the
 actual verification step matters, not just the act of searching.
+
+**Reporting & risk register enhancements, stages A-E (Release 11)** — done
+and verified, five independently-scoped additions to the Threats tab and
+its exports. Stage F (sub-diagrams in PDF export) is separate, still to
+come.
+
+*Stage A — inherent vs. residual DREAD*: new `inherentDreadScore(threat)`
+and `hasMitigationCredit(threat)` in `dreadEngine.ts`, both pure functions
+derived from the already-frozen `dreadBreakdown` — no new stored field
+needed, since `threat.dread` was already the residual (mitigations
+included) score and the breakdown already carries every contribution
+labeled, including the negative mitigation ones. `inherentDreadScore` just
+re-sums each key excluding negative amounts. `ThreatsPanel.tsx`'s DREAD
+block shows a second, smaller "Inherent (no mitigations)" line **only**
+when `hasMitigationCredit` is true — deliberately suppressed otherwise,
+since most threats have no mitigation on their flow and a second identical
+number would be noise, not information. `reportTemplate.ts` gained a
+matching "Risk" column (residual total/level, plus the inherent line when
+relevant) in both PDF variants' threat tables, gated on
+`project.frameworks.dread`.
+
+*Stage B — compliance-tag and DREAD-risk-level filters*: two new `<select>`
+filters in `ThreatsPanel.tsx`'s existing filter bar, alongside
+status/category/type. The compliance filter only renders when at least one
+threat's target actually has a tag (via the existing
+`complianceTagsByTarget` map); the risk filter only when DREAD is enabled
+on the project — same "don't show a control with nothing to filter"
+restraint the type filter already used.
+
+*Stage C — CSV export*: new `threatsToCsv(threats, ctx)` in
+`threatIntel.ts` (Category/Title/Target/Status/all 5 DREAD fields/Total/
+Average/RiskLevel/Compliance/Notes), same "no credentials, no network
+calls" posture as Copy as Markdown (Release 9). Exports whatever list it's
+handed — the Threats tab's "Export CSV" button passes its *currently
+filtered* threats, not necessarily every threat in the project, so
+"export all Critical PCI threats" is just filter-then-export. New
+`reports:export-csv` IPC handler (`electron/main.js`), same
+`dialog.showSaveDialog` + `fs.writeFile` pattern every other file export
+in this app already uses.
+
+*Stage D — standalone diagram export (PNG/SVG)*: `captureDiagramImage()`
+in `Canvas.tsx` (previously PNG-only, used internally for the PDF's
+embedded screenshot) now takes a `format` param and calls `html-to-image`'s
+`toSvg()` for SVG. New `reports:export-image` IPC handler — SVG data URLs
+are percent-encoded UTF-8 text (`data:image/svg+xml;charset=utf-8,...`),
+not base64, so the handler decodes and writes it as text rather than
+treating it as binary like the PNG branch. `ExportMenu.tsx` gained
+"Diagram (PNG)"/"Diagram (SVG)" entries.
+
+*Stage E — risk register / Threats table view*: a List/Table toggle in
+`ThreatsPanel.tsx`'s filter bar. Table mode is a sortable grid (click a
+column header to sort/reverse: Category, Threat, Target, Status, Risk,
+Compliance) that lives *alongside* the original list+detail layout, not a
+replacement — the detail panel on the right works identically in both
+modes, only what's on the left switches. Deliberately built inside
+`ThreatsPanel.tsx` itself rather than as a third sub-tab on the existing
+Elements/Flows table (`ElementsTable.tsx`) — that component's props/state
+are entirely nodes-and-edges-shaped with no threat awareness, and bolting
+threats onto it would have meant threading DREAD/compliance context
+through a component that has no other reason to know about either.
+
+**A live debugging session during testing, worth remembering** — the user
+placed a WAF, spliced it onto a flow, and reported DREAD scores weren't
+reflecting the mitigation at all, in either the Threats tab or the PDF.
+Diagnosed by pulling the actual saved project JSON off disk and testing
+`generateThreats()`/`mergeThreats()`/`buildReportHtml()` directly against
+it (same methodology as the Tidy Up bugfix above) rather than guessing —
+found two things layered on top of each other:
+
+1. The user was initially looking at "Information Disclosure of Web
+   Server" — a *node* threat, not a *flow* threat. Mitigation credit only
+   ever applies to an edge whose source is literally the mitigation node,
+   and only for Tampering and Denial of Service — never Information
+   Disclosure, Spoofing, Repudiation, or Elevation (no clean mechanism
+   connects "blocks unauthorized traffic" to *those* specifically, same
+   bar every other DREAD bump in this app has to clear).
+2. Splicing the WAF onto a flow doesn't auto-regenerate threats — nothing
+   in this app does; regeneration is deliberately manual throughout. The
+   two new edges the splice created had *zero* threats until "Regenerate
+   Threats" was clicked again, and the old edge's now-orphaned threats sat
+   around unpruned until the same click. The user had genuinely forgotten
+   this step, confirmed by testing `generateThreats()` directly against
+   their exact saved diagram — it produced full, correct results including
+   mitigation credit on the right edges, proving the underlying code was
+   never the problem.
+
+Once regenerated, the mitigation credit showed up exactly as designed. The
+user's own suggestion after hitting this — a UI nudge when threats might
+be stale — is logged as Backlog item 6, since it's a genuinely easy trap
+(a diagram edit *looks* complete with no indication that Threats now
+disagrees with it) and cost real debugging time before the actual cause
+surfaced.
 
 **Auto-layout boundary-containment fix (bugfix session)** — the day
 Release 8 part 2 shipped, the user reported (with before/after
@@ -1525,6 +1631,24 @@ already built:
    debugging, not a diagnosis. Needs interactive testing (e.g. temporarily
    logging each `onChange` firing during a real pick) before attempting a
    fix.
+6. **Surface a reminder when threats may be stale after diagram changes**
+   — found live while diagnosing a user report during Release 11 testing
+   (see "Reporting & risk register enhancements, stages A-E (Release 11)"
+   under "What's built" for the full debugging story). Splicing a
+   mitigation onto a flow (or any diagram edit) doesn't auto-refresh
+   threats — only clicking "Regenerate Threats" does — so a freshly-spliced
+   edge shows zero threats, and any already-reviewed (DREAD-frozen) threat
+   on an existing edge stays exactly as it was, until the user remembers to
+   click that button again. This is working as designed (regeneration is
+   deliberately manual, not automatic, throughout this app), but it's a
+   very easy trap to fall into and cost real debugging time this session
+   before the actual root cause (forgot to regenerate) was confirmed via
+   direct testing against the live project data. User's own suggestion
+   after hitting it: "Maybe there should be a little notification on the
+   regenerate threats that shows that there are more threats pending
+   refresh." Small, contained UI addition if wanted — e.g. a dirty-diagram
+   flag (nodes/edges changed since the last regenerate) driving a badge or
+   highlight on the "Regenerate Threats" button.
 
 Decided against / explicitly skipped:
 - **Threat diagram screenshot** in the Threats detail panel — would have
