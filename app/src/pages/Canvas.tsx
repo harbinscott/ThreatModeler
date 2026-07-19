@@ -31,6 +31,7 @@ import { OverlayMenu, type OverlayLayers } from '../canvas/OverlayMenu'
 import { findStencil, type StencilDef, type StencilOption } from '../canvas/stencils'
 import { attachMitigationToCrossingFlows } from '../canvas/mitigationAttach'
 import { normalizeEdges, readLevel, writeLevel, removeSubDiagramSubtree } from '../canvas/subDiagrams'
+import { autoLayoutDiagram } from '../canvas/autoLayout'
 import { buildReportHtml, type ReportVariant } from '../reports/reportTemplate'
 import { PastaWorkflow } from '../pasta/PastaWorkflow'
 import { emptyPastaData, normalizePasta } from '../pasta/pastaDefaults'
@@ -48,6 +49,7 @@ import {
   IconDeviceFloppy,
   IconChevronDown,
   IconChevronRight,
+  IconLayoutGrid,
 } from '@tabler/icons-react'
 import { SHAPE_LABELS, SHAPE_ICONS } from '../canvas/shapeMeta'
 import '../canvas/canvas.css'
@@ -288,6 +290,10 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     const node = makeNode('trust-boundary', addedCount, undefined, preset)
     setAddedCount((c) => c + 1)
     setNodes((nds) => [...nds, node])
+  }
+
+  function handleTidyUp() {
+    setNodes(autoLayoutDiagram({ nodes, edges }))
   }
 
   function addFlow(sourceId: string, targetId: string) {
@@ -879,6 +885,20 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
                     ))}
                     <TrustBoundaryButton onAdd={addBoundary} />
                   </div>
+                </div>
+                <span className="canvas-toolbar__divider canvas-toolbar__divider--tall" />
+                <div className="canvas-toolbar__group">
+                  <span className="canvas-toolbar__group-label">Layout</span>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={handleTidyUp}
+                    disabled={nodes.filter((n) => n.data.elementType !== 'trust-boundary').length === 0}
+                    title="Reflow elements into a top-to-bottom layout based on their flows. Trust boundaries stay in place as containers but resize to fit whatever ends up inside them."
+                  >
+                    <IconLayoutGrid size={15} aria-hidden="true" />
+                    Tidy up
+                  </button>
                 </div>
                 <span className="canvas-toolbar__divider canvas-toolbar__divider--tall" />
                 <div className="canvas-toolbar__group">

@@ -8,25 +8,33 @@ obvious from the code alone.
 
 ## Resume here (updated end of this session)
 
-1. **Release 8, part 1 — Sub-diagrams (DFD leveling) — done and fully
-   verified.** See "Sub-diagrams (Release 8, part 1)" under "What's built"
-   below for the full writeup. Highlights:
-   - Process nodes only (Data Stores/External Entities/Trust Boundaries/
-     Mitigations are terminal in DFD methodology) can drill into a nested
-     sub-diagram via a new Inspector button, with a breadcrumb strip for
-     navigating back up. Threats/DREAD/undo history are scoped per level —
-     explicitly no rollup into the parent (a summary badge is the only
-     cross-level signal), per user scope decision.
-   - New top-left canvas badge on a Process with a sub-diagram (gray, or
-     tiered amber/coral/red if it has open threats inside) — click to jump
-     straight in. Added after initial testing when the user asked for a
-     visual indicator.
-   - Deleting a Process that owns a sub-diagram now warns first (the nested
-     sub-diagram is destroyed too) — also added after initial testing, a
-     real data-safety gap the user caught before it bit anyone.
-2. **Next up: Release 8, part 2 — Auto-layout** (a "tidy up" button using
-   dagre/elkjs to reflow node positions). Small, self-contained, completes
-   Release 8. See "Release roadmap" below.
+1. **Release 8 — Diagram Scalability — done and fully verified, both
+   parts.** See "Sub-diagrams (Release 8, part 1)" and "Auto-layout
+   (Release 8, part 2)" under "What's built" below for the full writeups.
+   Highlights:
+   - **Part 1, sub-diagrams (DFD leveling)**: Process nodes only (Data
+     Stores/External Entities/Trust Boundaries/Mitigations are terminal in
+     DFD methodology) can drill into a nested sub-diagram via a new
+     Inspector button, with a breadcrumb strip for navigating back up.
+     Threats/DREAD/undo history are scoped per level — explicitly no
+     rollup into the parent, per user scope decision. A top-left canvas
+     badge (gray, or tiered amber/coral/red if there are open threats
+     inside) shows which Process nodes own one and jumps straight in on
+     click; deleting a Process that owns a sub-diagram now warns first,
+     both added after initial live testing.
+   - **Part 2, auto-layout**: a "Tidy up" ribbon button reflows
+     Process/Data Store/External Entity/Mitigation nodes top-to-bottom via
+     `dagre`, based on their actual flow edges. Trust boundaries are
+     handled as dagre *compound* (cluster) parents rather than ordinary
+     nodes — since they represent spatial containment, not flow
+     connectivity, which is what dagre lays out by — so a boundary always
+     resizes to still fully enclose whatever ends up inside it after a
+     reflow, instead of nodes drifting outside their zone.
+2. **Next up: Release 9 — SDLC integration.** Threat model
+   versioning/diffing between saves (capped revision history, restore),
+   risk-acceptance sign-off (who/when/review-by date, not just a status +
+   freeform note), and pushing open threats to Jira/GitHub Issues as
+   tracked work. See "Release roadmap" below.
 3. One unrelated bug reported during this session, logged but **not yet
    fixed** per explicit user request (backlog only): `ColorSwatchPicker.tsx`'s
    "Recent" custom colors all show the same color instead of a history of
@@ -37,21 +45,21 @@ obvious from the code alone.
    `color.ts`'s dedup logic looks correct in isolation on a static read, so
    this needs interactive debugging before a fix, not a guess. See Backlog
    below.
-5. Releases 6 (mitigation elements) and 7 (threat intelligence grounding)
+4. Releases 6 (mitigation elements) and 7 (threat intelligence grounding)
    are done and fully verified — see "What's built" below for the full
-   writeups, not repeated here now that Release 8 part 1 is the latest work.
-6. Two more items came in from Release 3 testing and were folded into the
+   writeups, not repeated here now that Release 8 is the latest work.
+5. Two more items came in from Release 3 testing and were folded into the
    roadmap rather than built immediately: an unsaved-changes guard (warn
    before navigating away from an edited-but-unsaved diagram) — Backlog
    item 1 below, small and a real data-safety gap — and a capped
    version-history/rollback feature, which landed in Release 9 (SDLC
    integration) since it already covered related ground
    ("versioning/diffing between saves"). Neither has been started.
-7. Two small backlog items remain from earlier sessions, both low priority,
+6. Two small backlog items remain from earlier sessions, both low priority,
    neither blocking: trust boundary shape editing *after* creation
    (currently creation-time only), and further parallel-edge endpoint
    visual polish. See Backlog below.
-8. Everything is committed and pushed to
+7. Everything is committed and pushed to
    `https://github.com/harbinscott/ThreatModeler` (`main` branch) as of the
    end of this session.
 
@@ -574,6 +582,25 @@ abort the whole delete if the user cancels — a real data-safety gap the
 user caught before it bit anyone, same category of fix as Release 3's
 unsaved-changes-guard backlog item.
 
+**Auto-layout (Release 8, part 2)** — `src/canvas/autoLayout.ts`,
+`autoLayoutDiagram(diagram)`, wired to a new "Tidy up" button in the
+Diagram tab ribbon (`handleTidyUp()` in `Canvas.tsx`, disabled when there
+are no non-boundary nodes). Uses `dagre` (added as a dependency) for a
+top-to-bottom layered layout based on the diagram's actual flow edges.
+Trust boundaries have no edges of their own — they represent spatial
+containment, not flow connectivity, which is what dagre lays out by — so
+naively treating them as ordinary nodes would place them disconnected from
+everything, and leaving them fixed while their contents move would let
+nodes drift outside the boundary they're supposed to be in. Instead each
+boundary becomes a dagre *compound* (cluster) parent (`g.setParent()`) for
+whatever's inside it (via the same `innermostBoundary()` helper
+`ruleEngine.ts` already uses for crossing detection), and dagre computes
+each cluster's own bounding box from its children — so a reflow always
+leaves a boundary correctly enclosing its members, growing/shrinking/
+repositioning as needed rather than staying at its old size. One undo step
+(picked up by the existing debounced undo recorder, no special-casing
+needed).
+
 **Threat intelligence grounding (Release 7)** — new
 `src/threats/threatIntel.ts`, two pure/unpersisted functions (same "derived,
 not stored" posture as the threat-overlay badges — nothing here is written
@@ -1015,11 +1042,9 @@ already built:
   "Threat intelligence grounding (Release 7)" under "What's built" for the
   full writeup, including the live verification pass against MITRE/NIST/
   CIS/OWASP sources that caught a real ASVS chapter-renumbering issue.
-- **Release 8 — Diagram scalability**: part 1 (drill-down/sub-diagrams) ✅
-  done and verified this session — see "Sub-diagrams (Release 8, part 1)"
-  under "What's built". Part 2 (auto-layout, a dagre/elkjs "tidy up" button
-  to reflow node positions) not started yet — small, self-contained,
-  completes the release.
+- **Release 8 — Diagram scalability** ✅ done and verified this session,
+  both parts — see "Sub-diagrams (Release 8, part 1)" and "Auto-layout
+  (Release 8, part 2)" under "What's built".
 - **Release 9 — SDLC integration**: threat model versioning/diffing between
   saves — the user's ask, surfaced testing Release 3, was specific: a
   revision counter next to the Canvas back-arrow that increments on every
