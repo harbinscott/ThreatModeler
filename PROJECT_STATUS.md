@@ -2331,12 +2331,23 @@ Done this session (context for why the code looks the way it does):
 Phase 0 (foundations), Phase 1 (app shell), and Phase 2 (diagram canvas) —
 done, Phase 2 substantially extended beyond original scope (color, floating
 edges, table view, threat overlay). Phase 3 (STRIDE + DREAD rule engine) —
-done. Phase 4 (PASTA + doc templates) — PASTA done; standalone doc templates
-(Threat Model Info/Messages/Notes dialogs) still backlog items. Phase 5
-(reporting) — done (PDF export), docx export explicitly deferred ("both,
-eventually" — PDF first). Phase 6 (installer) — done, see "Installer packaging
-finally verified" above. Phase 7
-(stretch: custom rules, IaC import, collaboration) — not started.
+done. Phase 4 (PASTA + doc templates) — done: PASTA's full 7-stage workflow,
+plus the standalone doc templates (`ThreatModelInfoDialog.tsx`,
+`MessagesDialog.tsx`, `NotesDialog.tsx`) all built and wired in — this line
+was stale (last updated before those shipped) and is now corrected. Phase 5
+(reporting) — done (PDF export); **docx export is the one named-but-never-
+revisited idea** from this whole phased list — explicitly deferred early on
+("both, eventually" — PDF first) and never brought back up since. Worth
+raising during a backlog/direction review if there's ever a real reason to
+want an editable-document export alongside the read-only PDF. Phase 6
+(installer) — done, see "Installer packaging finally verified" above. Phase 7
+(stretch: custom rules, IaC import, collaboration) — done: custom STRIDE
+rules (Release 12) and Terraform IaC import (Release 14) both shipped;
+multi-user collaboration was never scoped into any release and remains the
+one Phase 7 idea not pursued — a networked/real-time editing feature that
+would change what kind of product this is (local single-user desktop app),
+same category of decision as the "consciously not pursuing" list under
+"Requirements doc gap analysis" above.
 
 ## Working agreements established this session (please keep following these)
 
