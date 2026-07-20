@@ -3,7 +3,7 @@ import { dreadAverage, dreadRiskLevel, dreadTotal } from './dreadEngine'
 
 export interface Citation {
   id: string
-  system: 'CAPEC' | 'CWE'
+  system: 'CAPEC' | 'CWE' | 'ATT&CK'
   name: string
   url: string
 }
@@ -63,6 +63,47 @@ const BASE_CITATIONS: Record<StrideCategory, Citation[]> = {
   ],
 }
 
+/** MITRE ATT&CK Enterprise technique per STRIDE category (Release 13) — same
+ *  curated, not-exhaustive posture as `BASE_CITATIONS` above, one technique
+ *  picked per category rather than attempting full matrix coverage. Every id
+ *  verified live against attack.mitre.org while building this (Technique
+ *  pages are JS-rendered and occasionally didn't return readable content
+ *  through automated fetch — T1562 was confirmed via a secondary source,
+ *  Picus Security's technique writeup, cross-checked against MITRE's own
+ *  versioned technique page URL rather than left unverified). STRIDE doesn't
+ *  map cleanly onto ATT&CK's tactics (STRIDE is architectural/preventive,
+ *  ATT&CK is adversary-behavior-during-an-intrusion), so each pick is the
+ *  single technique whose *description* most directly matches what that
+ *  STRIDE category asks "could an attacker...": Repudiation maps to
+ *  Indicator Removal (clearing/tampering with the audit trail that would
+ *  otherwise make an action attributable) rather than anything under
+ *  ATT&CK's own "Impact" tactic, since ATT&CK has no tactic named after
+ *  non-repudiation the way it does for the other five categories. */
+const BASE_ATTACK: Record<StrideCategory, Citation[]> = {
+  S: [{ id: 'T1078', system: 'ATT&CK', name: 'Valid Accounts', url: 'https://attack.mitre.org/techniques/T1078/' }],
+  T: [{ id: 'T1565', system: 'ATT&CK', name: 'Data Manipulation', url: 'https://attack.mitre.org/techniques/T1565/' }],
+  R: [{ id: 'T1070', system: 'ATT&CK', name: 'Indicator Removal', url: 'https://attack.mitre.org/techniques/T1070/' }],
+  I: [
+    {
+      id: 'T1213',
+      system: 'ATT&CK',
+      name: 'Data from Information Repositories',
+      url: 'https://attack.mitre.org/techniques/T1213/',
+    },
+  ],
+  D: [
+    { id: 'T1499', system: 'ATT&CK', name: 'Endpoint Denial of Service', url: 'https://attack.mitre.org/techniques/T1499/' },
+  ],
+  E: [
+    {
+      id: 'T1068',
+      system: 'ATT&CK',
+      name: 'Exploitation for Privilege Escalation',
+      url: 'https://attack.mitre.org/techniques/T1068/',
+    },
+  ],
+}
+
 /** Extra, more specific citations layered on when the threat's own text/rule
  *  already signals a particular pattern — reuses the same description/ruleId
  *  signals `dreadEngine.ts`'s `contextContributions()` already checks,
@@ -77,6 +118,7 @@ function extraCitations(threat: Threat): Citation[] {
       url: 'https://cwe.mitre.org/data/definitions/319.html',
     })
     extra.push({ id: 'CAPEC-94', system: 'CAPEC', name: 'Adversary in the Middle (AiTM)', url: 'https://capec.mitre.org/data/definitions/94.html' })
+    extra.push({ id: 'T1557', system: 'ATT&CK', name: 'Adversary-in-the-Middle', url: 'https://attack.mitre.org/techniques/T1557/' })
   }
   if (threat.description.includes('high priority')) {
     extra.push({
@@ -93,16 +135,18 @@ function extraCitations(threat: Threat): Citation[] {
       name: 'Insufficiently Protected Credentials',
       url: 'https://cwe.mitre.org/data/definitions/522.html',
     })
+    extra.push({ id: 'T1552', system: 'ATT&CK', name: 'Unsecured Credentials', url: 'https://attack.mitre.org/techniques/T1552/' })
   }
   if (threat.ruleId.startsWith('mitigation-')) {
     extra.push({ id: 'CWE-693', system: 'CWE', name: 'Protection Mechanism Failure', url: 'https://cwe.mitre.org/data/definitions/693.html' })
+    extra.push({ id: 'T1562', system: 'ATT&CK', name: 'Impair Defenses', url: 'https://attack.mitre.org/techniques/T1562/' })
   }
   return extra
 }
 
 export function citationsForThreat(threat: Threat): Citation[] {
   const seen = new Set<string>()
-  return [...BASE_CITATIONS[threat.category], ...extraCitations(threat)].filter((c) =>
+  return [...BASE_CITATIONS[threat.category], ...BASE_ATTACK[threat.category], ...extraCitations(threat)].filter((c) =>
     seen.has(c.id) ? false : (seen.add(c.id), true)
   )
 }

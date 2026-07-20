@@ -70,7 +70,18 @@ export type BoundaryType =
   | 'Kernel/User Mode Boundary'
   | 'Cloud Account/Tenant Boundary'
 
-export type ComplianceTag = 'PII' | 'PHI' | 'PCI' | 'GDPR' | 'SOX' | 'SOC2' | 'CMMC'
+export type ComplianceTag =
+  | 'PII'
+  | 'PHI'
+  | 'PCI'
+  | 'GDPR'
+  | 'SOX'
+  | 'SOC2'
+  | 'CMMC'
+  | 'HIPAA'
+  | 'ISO27001'
+  | 'NISTCSF'
+  | 'FedRAMP'
 
 /** PCI-specific sub-classification, only meaningful when `complianceTags`
  *  includes 'PCI' — mirrors how PCI DSS segmentation is actually reasoned

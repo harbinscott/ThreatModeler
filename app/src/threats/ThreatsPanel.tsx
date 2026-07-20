@@ -620,7 +620,7 @@ export function ThreatsPanel({
           </div>
 
           <div className="threats-detail__field">
-            <span className="threats-detail__label" title="Curated, not exhaustive — verify against the current MITRE CAPEC/CWE publications before citing in a formal deliverable.">
+            <span className="threats-detail__label" title="Curated, not exhaustive — verify against the current MITRE CAPEC/CWE/ATT&CK publications before citing in a formal deliverable.">
               References
             </span>
             <div className="threats-detail__citations">

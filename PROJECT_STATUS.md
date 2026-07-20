@@ -94,20 +94,31 @@ obvious from the code alone.
    See "Stretch (Release 12)" under "What's built" for the full writeup.
    Next up: **Release 13 — Requirements Gap Coverage** (scoped, not
    started) — see "Release roadmap" below for the full scope.
-6. **Release 13 — Requirements Gap Coverage** (scoped from the
-   requirements-doc comparison, not built): MITRE ATT&CK citations
-   alongside the existing CAPEC/CWE ones, control verification states
-   (proposed/implemented/verified/failed — weighted DREAD mitigation
-   credit instead of today's all-or-nothing), a DREAD scoring rubric with
-   anchor descriptions per 1-10 value, more compliance framework tags
-   (HIPAA, ISO 27001 Annex A, NIST CSF 2.0, FedRAMP), a reverse/auditor
-   compliance view, project templates, a risk-trend dashboard (newly
-   *feasible* now that Release 9's `revisionHistory` gives us timestamped
-   snapshots), and SARIF/OTM export. See "Release roadmap" below for the
-   full writeup, including what was deliberately left out (live cloud
-   discovery, SIEM/scanner closed-loop, CMDB/IdP integration, a networked
-   REST API — all assume external systems or a server component this local
-   desktop app doesn't have).
+6. **Release 13 — Requirements Gap Coverage — in progress, stages A-B done
+   and verified, stages C-H not started.** Eight stages total, ordered
+   small/independent first, biggest design work last — see "Release
+   roadmap" below for the full scope and stage order, and "Requirements
+   gap coverage (Release 13), stages A-B" under "What's built" for the
+   full writeup of what's done so far:
+   - **✅ Stage A — four more compliance framework tags** (HIPAA,
+     ISO 27001 Annex A, NIST CSF 2.0, FedRAMP). Turned out to need almost
+     no new code — the existing tag system (`complianceTags.ts`'s
+     propagation, `dreadEngine.ts`'s DREAD bump, `ruleEngine.ts`'s
+     description text, the Threats tab filter) was already fully generic
+     over `ComplianceTag`, so this was purely a type-union + labels/colors
+     addition.
+   - **✅ Stage B — MITRE ATT&CK technique citations** alongside the
+     existing CAPEC/CWE ones, one curated technique per STRIDE category
+     plus three signal-based extras (boundary-crossing, credential-related,
+     mitigation-targeting threats). Every id verified live against
+     attack.mitre.org before shipping, same practice established in
+     Release 7 — one technique (T1562) needed a secondary source since its
+     MITRE page didn't render cleanly through automated fetch, cross-
+     checked before including it.
+   - **Not started**: DREAD scoring rubric (stage C, next up), SARIF/OTM
+     export (D), control verification states (E, the single highest-value
+     item from the requirements doc), reverse/auditor compliance view (F),
+     project templates (G), risk-trend dashboard (H).
 7. One more unrelated bug reported in an earlier session, logged but **not
    yet fixed** per explicit user request (backlog only):
    `ColorSwatchPicker.tsx`'s "Recent" custom colors all show the same color
@@ -138,7 +149,8 @@ obvious from the code alone.
    below.
 11. Everything is committed and pushed to
     `https://github.com/harbinscott/ThreatModeler` (`main` branch) as of
-    the end of this session, including all four stages of Release 12.
+    the end of this session, including all four stages of Release 12 and
+    stages A-B of Release 13.
 
 ## What this is
 
@@ -1540,6 +1552,62 @@ threat-affecting change in this app already follows (Backlog item 6 already
 tracks the general "was this reflected?" trap this shares with everything
 else here).
 
+**Requirements gap coverage (Release 13), stages A-B** — in progress;
+stages C-H not started (see "Release roadmap" below for the full
+eight-stage scope and order).
+
+*Stage A — four more compliance framework tags*: `ComplianceTag` extended
+with `HIPAA`, `ISO27001`, `NISTCSF`, `FedRAMP` (`types/project.ts`), plus
+matching entries in `complianceTags.ts`'s `COMPLIANCE_TAGS`/
+`COMPLIANCE_TAG_LABELS`/`COMPLIANCE_TAG_COLOR`. That's genuinely the entire
+change — every consumer of `ComplianceTag` in this codebase (propagation's
+same-zone flood-fill, the DREAD compliance bump, `ruleEngine.ts`'s
+description text, the Markdown/CSV exporters, the Threats tab's compliance
+filter and Inspector's checkbox list) was already written generically over
+whatever's in the `ComplianceTag` union rather than switching on specific
+tag values, so adding four more members to the union and their
+labels/colors was sufficient — confirmed by grepping for every reference to
+`ComplianceTag` before starting and finding no hardcoded tag-specific
+branches outside `complianceTags.ts` itself (PCI's `pciScope` sub-field is
+the one genuine exception, untouched since none of the four new tags need
+an equivalent). Worth noting for later: **HIPAA now coexists as its own
+framework tag alongside the pre-existing PHI tag** (whose label already
+read "Protected Health Information (HIPAA)") — deliberately distinct
+rather than merged, mirroring how PCI already exists as both a
+data-classification-flavored tag and a framework-named one; flagged to the
+user rather than silently resolved, no change requested.
+
+*Stage B — MITRE ATT&CK technique citations*: `Citation.system` extended
+to `'CAPEC' | 'CWE' | 'ATT&CK'` (`threatIntel.ts`). New `BASE_ATTACK:
+Record<StrideCategory, Citation[]>` — one curated technique per category
+(S: T1078 Valid Accounts, T: T1565 Data Manipulation, R: T1070 Indicator
+Removal, I: T1213 Data from Information Repositories, D: T1499 Endpoint
+Denial of Service, E: T1068 Exploitation for Privilege Escalation), merged
+into `citationsForThreat()` alongside the existing `BASE_CITATIONS`.
+`extraCitations()` gained three more signal-based ATT&CK entries paired
+with their existing CWE/CAPEC counterparts: T1557 Adversary-in-the-Middle
+(boundary-crossing threats, alongside CAPEC-94), T1552 Unsecured
+Credentials (credential-related threats, alongside CWE-522), T1562 Impair
+Defenses (threats targeting a mitigation control itself, alongside
+CWE-693). STRIDE doesn't map cleanly onto ATT&CK's own tactics (STRIDE is
+architectural/preventive, ATT&CK is adversary-behavior-during-an-intrusion)
+— each pick is the single technique whose description most directly
+answers that category's "could an attacker..." question, not an attempt to
+align STRIDE categories with ATT&CK tactics one-for-one; Repudiation in
+particular maps to Indicator Removal (clearing the audit trail) since
+ATT&CK has no tactic named after non-repudiation the way it does for the
+other five. Every id verified live against attack.mitre.org before
+shipping, same "live-verify, don't trust memory" practice Release 7
+established for CAPEC/CWE/NIST/CIS/ASVS and Release 10 caught an ASVS
+renumbering with — one technique (T1562) needed a secondary source
+(Picus Security's technique writeup) since its MITRE page returned empty
+content through automated fetch; cross-checked rather than included
+unverified. No changes needed in `ThreatsPanel.tsx`'s citation rendering
+(already generic over `Citation`, not switching on `system`) or
+`threatToMarkdown()` (already includes every entry `citationsForThreat()`
+returns) — only the "References" section's hint tooltip text was updated
+to mention ATT&CK alongside CAPEC/CWE.
+
 ## Release roadmap (agreed with user — work through in this order)
 
 Grouped into batches of related work rather than one flat backlog, per user
@@ -1737,43 +1805,51 @@ already built:
   - **Stage D — custom user-defined STRIDE rules** — biggest open design
     question of the four (a rule-authoring UI plus integration with
     `mergeThreats()`'s dedup/preserve-edits logic), left for last.
-- **Release 13 — Requirements Gap Coverage** *(new this session, scoped
-  from a systematic comparison against the user-supplied competitor
-  requirements doc; not started)*. See "Requirements doc gap analysis"
-  below under "What's built" for the full comparison this was drawn from,
+- **Release 13 — Requirements Gap Coverage** *(scoped from a systematic
+  comparison against the user-supplied competitor requirements doc —
+  in progress, stages A-B done and verified this session, ordered
+  small/independent first)*. See "Requirements doc gap analysis" below
+  under "What's built" for the full comparison this was drawn from,
   including everything already covered and everything consciously *not*
   being pursued (with reasons):
-  - **MITRE ATT&CK technique ID citations** alongside the existing
-    CAPEC/CWE ones (Release 7) — same `threatIntel.ts` architecture,
-    same "verify every id live before shipping" practice.
-  - **Control verification states** — proposed/implemented/verified/
-    failed-or-regressed, with only `verified` controls getting full DREAD
-    mitigation weight and `implemented`-but-unverified getting partial
-    credit. The single highest-value idea from the requirements doc;
-    extends the existing mitigation-attribute architecture (Release 6)
-    rather than replacing it.
-  - **DREAD scoring rubric** — defined anchor descriptions per 1-10 value
-    for each of the 5 fields, shown alongside the existing hint tooltips,
-    for the situations automation can't derive a score and a human has to
-    pick one.
-  - **More compliance framework tags**: HIPAA, ISO 27001 Annex A, NIST
-    CSF 2.0, FedRAMP — extends the existing `ComplianceTag` union
-    (Release 5), same propagation/DREAD-bump architecture, no new
-    mechanism needed.
-  - **Reverse/auditor compliance view** — start from a framework
-    requirement, see which components it applies to and their status;
-    the framework-centric companion to Release 11's target-centric risk
-    register.
-  - **Project templates** — common patterns (three-tier web app,
-    event-driven microservice, data pipeline) as diagram starting points,
-    distinct from Release 3's per-element "save as custom element."
-  - **Risk-trend dashboard** — newly *feasible*, not just theoretically
-    nice, now that Release 9's `revisionHistory` gives us timestamped
-    project snapshots to chart against.
-  - **SARIF and OTM (Open Threat Model) export** — CI-gate/interop-
-    friendly formats, same shape as the existing CSV/Markdown exporters
-    (no credentials or network calls needed, unlike the scanner/SIEM/CMDB
-    integrations the doc also lists — see below for why those are out).
+  - **✅ Stage A — more compliance framework tags**: HIPAA, ISO 27001
+    Annex A, NIST CSF 2.0, FedRAMP — extends the existing `ComplianceTag`
+    union (Release 5), same propagation/DREAD-bump architecture, no new
+    mechanism needed. See "Requirements gap coverage (Release 13),
+    stages A-B" under "What's built."
+  - **✅ Stage B — MITRE ATT&CK technique ID citations** alongside the
+    existing CAPEC/CWE ones (Release 7) — same `threatIntel.ts`
+    architecture, same "verify every id live before shipping" practice.
+    See "Requirements gap coverage (Release 13), stages A-B" under
+    "What's built."
+  - **Stage C — DREAD scoring rubric** *(not started, next up)* — defined
+    anchor descriptions per 1-10 value for each of the 5 fields, shown
+    alongside the existing hint tooltips, for the situations automation
+    can't derive a score and a human has to pick one.
+  - **Stage D — SARIF and OTM (Open Threat Model) export** *(not
+    started)* — CI-gate/interop-friendly formats, same shape as the
+    existing CSV/Markdown exporters (no credentials or network calls
+    needed, unlike the scanner/SIEM/CMDB integrations the doc also lists
+    — see below for why those are out).
+  - **Stage E — control verification states** *(not started)* —
+    proposed/implemented/verified/failed-or-regressed, with only
+    `verified` controls getting full DREAD mitigation weight and
+    `implemented`-but-unverified getting partial credit. The single
+    highest-value idea from the requirements doc; extends the existing
+    mitigation-attribute architecture (Release 6) rather than replacing
+    it.
+  - **Stage F — reverse/auditor compliance view** *(not started)* — start
+    from a framework requirement, see which components it applies to and
+    their status; the framework-centric companion to Release 11's
+    target-centric risk register.
+  - **Stage G — project templates** *(not started)* — common patterns
+    (three-tier web app, event-driven microservice, data pipeline) as
+    diagram starting points, distinct from Release 3's per-element "save
+    as custom element."
+  - **Stage H — risk-trend dashboard** *(not started)* — newly
+    *feasible*, not just theoretically nice, now that Release 9's
+    `revisionHistory` gives us timestamped project snapshots to chart
+    against.
   - **Explicitly not pursuing**, named rather than silently dropped: live
     cloud discovery (AWS/Azure/GCP read-only API), SIEM/scanner
     closed-loop control verification, CMDB/IdP integration, a networked

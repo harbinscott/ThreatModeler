@@ -14,7 +14,19 @@ function makeZoneResolver(diagram: Diagram) {
   }
 }
 
-export const COMPLIANCE_TAGS: ComplianceTag[] = ['PII', 'PHI', 'PCI', 'GDPR', 'SOX', 'SOC2', 'CMMC']
+export const COMPLIANCE_TAGS: ComplianceTag[] = [
+  'PII',
+  'PHI',
+  'PCI',
+  'GDPR',
+  'SOX',
+  'SOC2',
+  'CMMC',
+  'HIPAA',
+  'ISO27001',
+  'NISTCSF',
+  'FedRAMP',
+]
 
 /** PCI is handled via `pciScope` (a select, not a checkbox) since it has a
  *  meaningful sub-classification — see `PciScope` in types/project.ts. */
@@ -28,6 +40,10 @@ export const COMPLIANCE_TAG_LABELS: Record<ComplianceTag, string> = {
   SOX: 'SOX — Financial Reporting (Sarbanes-Oxley)',
   SOC2: 'SOC 2 — Trust Services Scope',
   CMMC: 'CMMC — Controlled Unclassified Information (DoD)',
+  HIPAA: 'HIPAA — Covered Entity/Business Associate Scope',
+  ISO27001: 'ISO 27001 Annex A — Information Security Controls Scope',
+  NISTCSF: 'NIST CSF 2.0 — Cybersecurity Framework Scope',
+  FedRAMP: 'FedRAMP — Federal Cloud Authorization Scope',
 }
 
 export const COMPLIANCE_TAG_COLOR: Record<ComplianceTag, string> = {
@@ -38,6 +54,10 @@ export const COMPLIANCE_TAG_COLOR: Record<ComplianceTag, string> = {
   SOX: '#facc15',
   SOC2: '#4ade80',
   CMMC: '#fb923c',
+  HIPAA: '#2dd4bf',
+  ISO27001: '#60a5fa',
+  NISTCSF: '#f472b6',
+  FedRAMP: '#818cf8',
 }
 
 function directTags(data: DiagramNodeData | DiagramEdgeData): ComplianceTag[] {
