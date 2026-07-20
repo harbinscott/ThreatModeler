@@ -68,6 +68,13 @@ function attributeContributions(threat: Threat, attrs: Record<string, AttributeV
   if (['Kernel', 'System', 'Administrator'].includes(attrs.runningAs as string) && threat.category === 'E') {
     add('damage', `Runs as ${attrs.runningAs} (elevated privileges)`, 2)
   }
+  // Isolation level is the architectural opposite of runningAs above — a
+  // sandboxed/contained process reduces the damage a compromise can do,
+  // the same "clean, statable reason" bar every other contribution here
+  // uses, just negative.
+  if (['AppContainer', 'Low Integrity Level', 'Sandbox'].includes(attrs.isolationLevel as string) && threat.category === 'E') {
+    add('damage', `Runs isolated (${attrs.isolationLevel}) — contained blast radius limits post-exploitation impact`, -1)
+  }
   // AI/ML risk surface (Release 10) — same signal ruleEngine.ts folds into
   // these threats' descriptions.
   if (attrs.usesAI === true && threat.category === 'T') {
@@ -75,6 +82,19 @@ function attributeContributions(threat: Threat, attrs: Record<string, AttributeV
   }
   if (attrs.usesAI === true && threat.category === 'I') {
     add('damage', 'AI/ML processing may leak training data or sensitive inference inputs/outputs', 2)
+  }
+  // Mobile device-permission surface — declaring access to any of these is a
+  // direct Information Disclosure signal, same reasoning as usesAI above.
+  if (threat.category === 'I') {
+    const devicePerms: [AttributeValue, string][] = [
+      [attrs.deviceLocationContacts, 'location, contacts & calendar'],
+      [attrs.deviceCamera, 'camera/microphone'],
+      [attrs.deviceMessaging, 'SMS/messaging data'],
+      [attrs.deviceCredentials, 'cached credentials'],
+    ]
+    for (const [flag, label] of devicePerms) {
+      if (flag === true) add('damage', `Declares access to sensitive device data: ${label}`, 2)
+    }
   }
 
   // Data store
@@ -84,6 +104,13 @@ function attributeContributions(threat: Threat, attrs: Record<string, AttributeV
   }
   if (attrs.signed === false && threat.category === 'T') {
     add('damage', 'Data is not signed', 1)
+  }
+  if (attrs.httpOnlyCookie === false && threat.category === 'I') {
+    add('damage', 'Cookie is not HTTP-only — accessible to client-side script (XSS-driven theft)', 2)
+  }
+  if (attrs.publiclyAccessible === true && threat.category === 'I') {
+    add('discoverability', 'Store is marked publicly accessible — no attacker access required', 3)
+    add('exploitability', 'Store is marked publicly accessible — no attacker access required', 3)
   }
 
   // External interactor
@@ -106,6 +133,10 @@ function attributeContributions(threat: Threat, attrs: Record<string, AttributeV
   }
   if (attrs.providesConfidentiality === false && threat.category === 'I') {
     add('damage', 'Flow does not provide confidentiality', 2)
+  }
+  if (attrs.containsCookies === true && attrs.providesConfidentiality === false && threat.category === 'I') {
+    add('damage', 'Flow carries cookies without confidentiality protection — session token exposure risk', 3)
+    add('affectedUsers', 'Flow carries cookies without confidentiality protection — session token exposure risk', 2)
   }
   if (attrs.providesIntegrity === false && threat.category === 'T') {
     add('damage', 'Flow does not provide integrity', 2)
@@ -228,17 +259,29 @@ function mitigationContributions(threat: Threat, diagram: Diagram): DreadContrib
  *  mitigation bumps already follow. The process half of this risk surface
  *  (usesAI) is handled in `attributeContributions` above since it's a plain
  *  node attribute; this one needs `diagram` to look past the edge's own
- *  attributes to its target node's. */
-function aiContributions(threat: Threat, diagram: Diagram): DreadContribution[] {
+ *  attributes to its target node's.
+ *
+ *  `vendorManaged` (broadened in) is the general form of the same "data
+ *  leaving the trust boundary to a party you don't control" fact pattern —
+ *  smaller amount than the AI-specific case so the two stay distinct, and
+ *  only one branch fires per node so a target with both flags doesn't get
+ *  double-counted. */
+function thirdPartyContributions(threat: Threat, diagram: Diagram): DreadContribution[] {
   if (threat.targetType !== 'edge' || threat.category !== 'I') return []
   const edge = diagram.edges.find((e) => e.id === threat.targetId)
   const target = edge && diagram.nodes.find((n) => n.id === edge.target)
   if (!target || target.data.elementType !== 'external-entity') return []
-  if (target.data.attributes?.usesThirdPartyAIProvider !== true) return []
-  return [
-    { key: 'damage', label: `Sends data to ${target.data.label}, a third-party AI/LLM provider`, amount: 2 },
-    { key: 'affectedUsers', label: `Sends data to ${target.data.label}, a third-party AI/LLM provider`, amount: 1 },
-  ]
+  const attrs = target.data.attributes
+  if (attrs?.usesThirdPartyAIProvider === true) {
+    return [
+      { key: 'damage', label: `Sends data to ${target.data.label}, a third-party AI/LLM provider`, amount: 2 },
+      { key: 'affectedUsers', label: `Sends data to ${target.data.label}, a third-party AI/LLM provider`, amount: 1 },
+    ]
+  }
+  if (attrs?.vendorManaged === true) {
+    return [{ key: 'damage', label: `Sends data to ${target.data.label}, a vendor-managed third party`, amount: 1 }]
+  }
+  return []
 }
 
 /** Crown-jewel assets (Release 12) get a business-impact bump on *every*
@@ -287,7 +330,7 @@ export function explainDreadScore(threat: Threat, diagram: Diagram): DreadContri
     ...attributeContributions(threat, attrs),
     ...complianceContributions(threat, diagram),
     ...mitigationContributions(threat, diagram),
-    ...aiContributions(threat, diagram),
+    ...thirdPartyContributions(threat, diagram),
     ...crownJewelContributions(threat, diagram),
   ]
 }

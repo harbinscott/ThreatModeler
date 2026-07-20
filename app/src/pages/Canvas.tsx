@@ -1177,7 +1177,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
                 <div className="canvas-toolbar__group">
                   <span className="canvas-toolbar__group-label">Add element</span>
                   <div className="canvas-toolbar__palette">
-                    {(['process', 'external-entity', 'data-store', 'mitigation'] as ElementType[]).map((type) => (
+                    {(['process', 'data-store', 'external-entity', 'mitigation'] as ElementType[]).map((type) => (
                       <ShapeButton
                         key={type}
                         elementType={type}
@@ -1198,7 +1198,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
                     className="btn"
                     onClick={handleTidyUp}
                     disabled={nodes.filter((n) => n.data.elementType !== 'trust-boundary').length === 0}
-                    title="Reflow elements into a top-to-bottom layout based on their flows. Trust boundaries stay in place as containers but resize to fit whatever ends up inside them."
+                    title="Reflow elements into a left-to-right layout based on their flows. Trust boundaries stay in place as containers but resize to fit whatever ends up inside them."
                   >
                     <IconLayoutGrid size={15} aria-hidden="true" />
                     Tidy up

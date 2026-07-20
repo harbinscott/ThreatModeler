@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import type { Project } from '../types/project'
+import { GettingStartedDialog } from '../components/GettingStartedDialog'
 import './Dashboard.css'
 
 interface DashboardProps {
@@ -9,6 +11,49 @@ interface DashboardProps {
   onDeleteProject: (id: string) => void
   onExportProject: (project: Project) => void
   onImportProject: () => void
+}
+
+/** Purely decorative — a faint triangular mesh behind the header with a
+ *  handful of glowing seams in the brand's own blue-to-red gradient (the
+ *  same two colors already used by the wordmark accent and the shield icon,
+ *  not a copy of any reference image's literal palette). Grid-aligned
+ *  coordinates (multiples of the 56px tile) so the glow reads as specific
+ *  edges of the mesh lighting up, not arbitrary decoration on top of it.
+ *  `aria-hidden` + `pointer-events: none` since it carries no information
+ *  and shouldn't intercept clicks on the header content above it. */
+function DashboardMesh() {
+  return (
+    <svg className="dashboard__mesh" viewBox="0 0 960 220" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <pattern id="dash-mesh-grid" width="56" height="56" patternUnits="userSpaceOnUse">
+          <path d="M0 0H56M0 0V56M0 0L56 56" fill="none" stroke="var(--border)" strokeWidth="1" />
+        </pattern>
+        <linearGradient id="dash-mesh-glow" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="var(--accent)" />
+          <stop offset="100%" stopColor="var(--danger)" />
+        </linearGradient>
+        <filter id="dash-mesh-blur" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2.5" />
+        </filter>
+        <linearGradient id="dash-mesh-fade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="white" />
+          <stop offset="65%" stopColor="white" />
+          <stop offset="100%" stopColor="black" />
+        </linearGradient>
+        <mask id="dash-mesh-mask">
+          <rect x="0" y="0" width="960" height="220" fill="url(#dash-mesh-fade)" />
+        </mask>
+      </defs>
+      <g mask="url(#dash-mesh-mask)">
+        <rect x="0" y="0" width="960" height="220" fill="url(#dash-mesh-grid)" opacity="0.6" />
+        <g stroke="url(#dash-mesh-glow)" strokeWidth="2" fill="none" opacity="0.8" filter="url(#dash-mesh-blur)" strokeLinecap="round">
+          <path d="M560 0 L616 56 L672 56 L728 112 L784 112 L840 168" />
+          <path d="M336 0 L392 56 L392 112" />
+          <path d="M896 0 L896 56 L952 112" />
+        </g>
+      </g>
+    </svg>
+  )
 }
 
 function frameworkBadges(project: Project): string[] {
@@ -28,6 +73,8 @@ export function Dashboard({
   onExportProject,
   onImportProject,
 }: DashboardProps) {
+  const [showGettingStarted, setShowGettingStarted] = useState(false)
+
   function handleDelete(e: React.MouseEvent, project: Project) {
     e.stopPropagation()
     if (window.confirm(`Delete "${project.name}"? This cannot be undone.`)) {
@@ -43,6 +90,7 @@ export function Dashboard({
   return (
     <div className="dashboard">
       <header className="dashboard__header">
+        <DashboardMesh />
         <div>
           <div className="dashboard__brand">
             <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
@@ -68,6 +116,9 @@ export function Dashboard({
           <p className="dashboard__subtitle">Threat models you're working on.</p>
         </div>
         <div className="dashboard__header-actions">
+          <button type="button" className="btn" onClick={() => setShowGettingStarted(true)} title="Getting started & keyboard shortcuts">
+            ? Help
+          </button>
           <button type="button" className="btn" onClick={onImportProject}>
             Import Project
           </button>
@@ -76,6 +127,8 @@ export function Dashboard({
           </button>
         </div>
       </header>
+
+      {showGettingStarted && <GettingStartedDialog onClose={() => setShowGettingStarted(false)} />}
 
       {loading && <p className="dashboard__muted">Loading projects…</p>}
 

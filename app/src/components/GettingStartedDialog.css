@@ -1,0 +1,94 @@
+.getting-started__tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.2rem;
+}
+
+.getting-started__tab {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.getting-started__tab--active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.getting-started__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.getting-started__step {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+}
+
+.getting-started__step-num {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent-strong);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.getting-started__step h3 {
+  font-size: 0.85rem;
+  margin: 0 0 0.15rem;
+}
+
+.getting-started__step p {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.getting-started__shortcuts {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.83rem;
+}
+
+.getting-started__shortcuts td {
+  padding: 0.45rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.getting-started__shortcuts tr:last-child td {
+  border-bottom: none;
+}
+
+.getting-started__shortcuts kbd {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0.15rem 0.45rem;
+  font-family: inherit;
+  font-size: 0.78rem;
+  color: var(--text);
+}
+
+.getting-started__note {
+  margin: 0.6rem 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}

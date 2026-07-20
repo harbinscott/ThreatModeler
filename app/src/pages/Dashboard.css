@@ -5,10 +5,26 @@
 }
 
 .dashboard__header {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   margin-bottom: 2rem;
+  padding: 0.5rem 0.5rem 1.5rem;
+}
+
+.dashboard__mesh {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.dashboard__header > div,
+.dashboard__header-actions {
+  position: relative;
 }
 
 .dashboard__brand {

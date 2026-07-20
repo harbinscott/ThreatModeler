@@ -28,7 +28,13 @@
 }
 
 .canvas-toolbar__row--primary {
-  justify-content: space-between;
+  /* Deliberately not justify-content: space-between — the tab bar used to
+     visibly shift sideways when switching views, because leaving the
+     Diagram tab drops the Undo/Redo/divider from .canvas-toolbar__actions,
+     shrinking its width and (via space-between + the title's flex-grow)
+     pushing everything after the title over. Anchoring actions to the right
+     with its own margin-left: auto instead means the tab bar's position is
+     driven only by the title's width, which never changes on a tab switch. */
 }
 
 .canvas-toolbar__row--ribbon {
@@ -212,7 +218,7 @@
   align-items: baseline;
   gap: 0.6rem;
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
 }
 
 .canvas-toolbar__title h1 {
@@ -246,6 +252,7 @@
   align-items: center;
   gap: 0.5rem;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .tab {

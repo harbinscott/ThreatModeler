@@ -161,7 +161,7 @@ export function citationsForThreat(threat: Threat): Citation[] {
 const MITIGATION_CONTROLS: Record<string, ControlRef[]> = {
   Firewall: [
     { framework: 'NIST 800-53', id: 'SC-7', name: 'Boundary Protection' },
-    { framework: 'CIS Controls v8', id: '12', name: 'Network Infrastructure Management' },
+    { framework: 'CIS Controls v8.1', id: '12', name: 'Network Infrastructure Management' },
   ],
   WAF: [
     { framework: 'NIST 800-53', id: 'SC-7', name: 'Boundary Protection' },
@@ -170,7 +170,7 @@ const MITIGATION_CONTROLS: Record<string, ControlRef[]> = {
   ],
   'IDS/IPS': [
     { framework: 'NIST 800-53', id: 'SI-4', name: 'System Monitoring' },
-    { framework: 'CIS Controls v8', id: '13', name: 'Network Monitoring and Defense' },
+    { framework: 'CIS Controls v8.1', id: '13', name: 'Network Monitoring and Defense' },
   ],
   // Release 10. ASVS 5.0 renumbered its chapters again since the WAF entry
   // above was verified against 4.0->5.0 in Release 7 — reverified live here:

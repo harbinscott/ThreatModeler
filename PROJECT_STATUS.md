@@ -136,22 +136,61 @@ obvious from the code alone.
    cloud-shaped trust boundary can render slightly squished under the new
    LR orientation, still fully identifiable — user confirmed this is fine
    as-is, not worth a follow-up fix right now).
-9. Releases 6 (mitigation elements), 7 (threat intelligence grounding), 8
-   (diagram scalability), 9 (SDLC integration), 10 (AI risk surface & API
-   Gateway), 11 (reporting & risk register enhancements), 12 (stretch:
-   crown jewels, reviewer comments, attack-path analysis, custom rules),
-   13 (requirements gap coverage: compliance tags, ATT&CK citations, DREAD
-   rubric, SARIF/OTM export, control verification states, auditor
-   compliance view, project templates, risk-trend dashboard), 14
-   (Terraform import, editor safety & polish, threat-analysis visibility),
-   and 15 (parallel-edge spacing + Tidy Up LR orientation) are all done and
-   fully verified — see "What's built" below for the full writeups.
-10. **No backlog items remain** — see Backlog below. The user's explicit
-    next step (not yet started) is a full backlog/requirements review to
-    scope whatever comes next, rather than assuming a direction.
-11. Everything is committed and pushed to
+9. **✅ Release 16 — Ship Readiness (v1.0) — done and verified, all five
+   stages.** The user did their own UI/UX pass in parallel with a Claude-run
+   three-part review (functionality automation gaps, regulatory citation
+   audit, competitive landscape — see item 10 below), then both were bundled
+   together as the "ready to ship" 1.0 release. See "Ship readiness
+   (Release 16)" under "What's built" for the full writeup:
+   - **Stage A — ribbon stability & reordering**: fixed the tab bar
+     (Diagram/Table/Threats/Attack Paths/Compliance) physically shifting
+     sideways when switching views — root cause was `justify-content:
+     space-between` plus the title's `flex-grow` reacting to Undo/Redo only
+     rendering on the Diagram tab; reordered the "Add element" shape
+     palette to process → data store → external entity → mitigation, trust
+     boundary last.
+   - **Stage B — six automation-gap hookups**: mobile device-permission
+     booleans, `publiclyAccessible`, `httpOnlyCookie`, `containsCookies`,
+     `isolationLevel`, and `vendorManaged` all now feed STRIDE descriptions
+     and/or DREAD contributions, each modeled directly on an existing
+     wired-up precedent (`usesAI`, `signed`, `runningAs`,
+     `usesThirdPartyAIProvider`).
+   - **Stage C — regulatory citation nits**: relabeled "CIS Controls v8" →
+     "v8.1" (control numbers unchanged). The CWE-345 swap the review
+     suggested was deliberately **not** applied after reading the actual
+     usage context — see the writeup for why a broad Class-level CWE is
+     the *right* choice for a generic per-category citation, not a defect.
+   - **Stage D — Dashboard visual identity + Getting Started**: a
+     decorative triangular-mesh background behind the Dashboard header
+     (brand blue→red gradient glow, not a literal copy of the user's
+     reference image's palette), and the app's first-ever help/onboarding
+     surface — a lightweight Getting Started + Shortcuts dialog.
+   - **Stage E — shipped**: full docs rewrite (this one), a fresh
+     `electron:build` installer, installed and launched to confirm the
+     standalone app works (not just dev mode), and pushed to GitHub.
+   - The New Project "pause before you can type" the user asked about was
+     **confirmed, not fixed** — `NewProjectWizard.tsx`'s own existing code
+     comment already documents this as React 19 StrictMode's dev-only
+     double-mount behavior, which doesn't happen in a production build. No
+     code change needed.
+10. **A three-part review** (spawned as three parallel background agents,
+    synthesized into one artifact) covered: functionality automation gaps
+    (found the 6 fields Release 16 stage B wired up), a regulatory citation
+    audit (0 broken/deprecated citations — 2 optional nits, one applied in
+    stage C, one deliberately not), and a competitive-landscape comparison
+    against 7 established threat-modeling tools (7 real gaps named, 6
+    differentiators confirmed after walking back 4 overclaims). See "Ship
+    readiness (Release 16)" under "What's built" for the fold-in; the
+    review's own artifact has the full per-finding detail if it's still
+    needed — the durable summary now lives in this file.
+11. **No backlog items remain.** Releases 0-16 are all done and fully
+    verified — see "What's built" below for the full writeups. The project
+    is at its planned 1.0 scope; further work is incremental post-1.0
+    updates per the user's own framing, not a backlog to work through.
+12. Everything is committed and pushed to
     `https://github.com/harbinscott/ThreatModeler` (`main` branch) as of
-    the end of this session, including both stages of Release 15.
+    the end of this session, including all five stages of Release 16, and
+    a fresh installer build was verified working.
 
 ## What this is
 
@@ -1930,6 +1969,129 @@ the new LR-oriented member layout — still fully identifiable as a cloud,
 and the user confirmed live that it's fine for now rather than worth a
 follow-up fix.
 
+**Ship readiness (Release 16)** — done and verified, all five stages. The
+user did their own UI/UX pass while a three-part review ran in parallel as
+three background agents (functionality automation gaps, regulatory citation
+audit, competitive landscape), synthesized into a published artifact; both
+came back together and were bundled into one "ready to ship 1.0" release,
+planned via `EnterPlanMode` given the size (four distinct user requests plus
+8 review findings) rather than assumed.
+
+*Stage A — ribbon stability & reordering*: the tab bar
+(Diagram/Table/Threats/Attack Paths/Compliance) visibly shifted sideways
+whenever the user switched views — root cause traced to
+`.canvas-toolbar__row--primary`'s `justify-content: space-between` across
+three flex children plus `.canvas-toolbar__title`'s `flex: 1 1 auto`
+absorbing all leftover row width: leaving the Diagram tab drops
+Undo/Redo/a divider from `.canvas-toolbar__actions` (only rendered on
+`view === 'diagram'`), shrinking its width, which shoved the title (and
+everything after it) sideways. Fixed structurally, not with a workaround:
+`.canvas-toolbar__title` changed to `flex: 0 1 auto` (sizes to content,
+still truncates via the existing `min-width: 0` + ellipsis under real space
+pressure) and `.canvas-toolbar__actions` gained `margin-left: auto`,
+removing the now-redundant `space-between` — the tab bar's screen position
+is now driven only by the title's width, which never changes on a tab
+switch, fully decoupling it from whatever renders in actions. Also
+reordered the "Add element" shape palette (`Canvas.tsx`) to process → data
+store → external entity → mitigation, trust boundary already last, and
+fixed a stale "Tidy up" tooltip still saying "top-to-bottom" after Release
+15's switch to left-to-right.
+
+*Stage B — automation-gap hookups*: all 6 fields the review's functionality
+pass found captured-but-unused, each modeled directly on an existing
+wired-up precedent rather than inventing new architecture:
+- **Mobile device-permission booleans** (`deviceLocationContacts`,
+  `deviceCamera`, `deviceMessaging`, `deviceCredentials`) → Information
+  Disclosure description + DREAD damage bump, modeled on `usesAI`.
+- **`publiclyAccessible`** (File/Cloud Storage) → folded into the existing
+  data-store `sensitive`/"high priority" gate (`ruleEngine.ts`) as another
+  condition with its own reason string, plus a new exploitability/
+  discoverability DREAD bump — arguably the most direct Information
+  Disclosure signal in the whole schema, and it was doing nothing before
+  this.
+- **`httpOnlyCookie === false`** (Cookie stores) → Information Disclosure,
+  modeled on `signed === false`'s Tampering bump.
+- **`containsCookies` + `providesConfidentiality === false`** (data-flow
+  edges) → Information Disclosure, modeled on the data-store
+  `storesCredentials`/`encryptedAtRest` branch, moved to the edge level.
+- **`isolationLevel`** (AppContainer/Low Integrity/Sandbox) → the
+  architectural *opposite* of `runningAs`'s Elevation-of-Privilege bump: a
+  contained process gets a small **negative** damage contribution, the same
+  "clean, statable reason, just negative" bar `mitigationContributions()`
+  already established.
+- **`vendorManaged`** (external entity) → `aiContributions()` was renamed
+  `thirdPartyContributions()` and broadened to also fire (smaller amount,
+  one branch per node so a target with both flags isn't double-counted) for
+  any vendor-managed third party, not only a declared AI provider —
+  `vendorManaged` is the general form of the exact fact pattern
+  `usesThirdPartyAIProvider` already scored.
+
+*Stage C — regulatory citation nits*: relabeled "CIS Controls v8" → "v8.1"
+in `threatIntel.ts` (control numbers #12/#13 unchanged, purely a version
+label). The review's other suggestion — swap the generic Tampering-category
+CWE-345 citation for a narrower child ID (CWE-346/347) since MITRE
+discourages Class-level entries for direct vulnerability mapping — was
+**deliberately not applied** after actually reading `BASE_CITATIONS` in
+`threatIntel.ts`: that citation is a hand-picked, category-wide reference
+applied to *every* Tampering threat (SQL injection, unsanitized input,
+unsigned data, MITM tampering, all of it), not a rule tied to one specific
+technique. MITRE's "discouraged for direct mapping" guidance is about
+CVE-to-CWE mapping in vulnerability databases like NVD, where maximum
+specificity for one concrete reported bug is the goal — a fundamentally
+different use case from citing a broad category of concern for an entire
+STRIDE bucket in a threat-modeling tool, where a Class-level entry's
+breadth is exactly what's needed. Worth remembering: a review finding is a
+starting point, not an instruction to execute blindly — re-checking the
+actual usage context before applying a "fix" caught that this one would
+have made the citation worse, not better.
+
+*Stage D — Dashboard visual identity + Getting Started*: the Dashboard page
+had no decorative visual treatment and zero help/onboarding UI anywhere in
+the app (confirmed by an Explore pass before planning — the only precedent
+was `Inspector.tsx`'s small `HelpTip` hover-tooltip component). Built a
+self-contained decorative SVG (`DashboardMesh` in `Dashboard.tsx`) behind
+`.dashboard__header` only, not the project grid, so card text stays legible:
+a faint triangular mesh (one diagonal per grid cell, `var(--border)`
+stroke) with a handful of grid-aligned glowing seams in a blue→red gradient
+(`var(--accent)` → `var(--danger)`, matching the existing brand palette and
+the shield icon's own two-tone design rather than literally copying the
+user's reference image's teal/magenta), blurred via an SVG `feGaussianBlur`
+filter and faded out toward the bottom via a gradient `<mask>` so it blends
+into the plain background above the project grid. `pointer-events: none` +
+`aria-hidden="true"` since it's purely decorative; the two real header
+content blocks needed an explicit `position: relative` to paint above the
+absolutely-positioned SVG (a static/non-positioned box always paints below
+positioned siblings in the same stacking context regardless of DOM order —
+worth remembering for any future decorative-background-behind-content
+layout). New `GettingStartedDialog.tsx` reuses the existing generic `Modal`
+component every other dialog in the app already uses — two tabs, a 5-step
+workflow guide (create project → draw diagram → generate threats → score
+DREAD → export) and a Shortcuts reference listing the real, previously
+undiscoverable keyboard shortcuts already implemented in `Canvas.tsx`
+(Ctrl+Z/Shift+Z/Y, Delete/Backspace, Ctrl+C/V, double-click-to-rename).
+Entry point: a new "? Help" button in the Dashboard header actions.
+Deliberately scoped small per explicit user sign-off — no external
+documentation site, no per-feature help content, just this one dialog.
+
+*Stage E — shipped*: full `PROJECT_STATUS.md` rewrite (this section), a
+fresh `npm run electron:build` (first rebuild since much earlier in the
+project — output to `C:\Users\harbi\ThreatModeling-builds`, outside the
+OneDrive-synced tree per the earlier `EPERM` fix), installed and launched
+to confirm the standalone packaged app actually works end-to-end and not
+just `electron:dev`, then committed and pushed.
+
+**New Project pause — confirmed, not fixed**: the user asked about a
+noticeable pause before the name field accepts typing when opening "New
+Project," suspecting it was a dev-only Electron quirk. Confirmed rather
+than assumed: `NewProjectWizard.tsx`'s own pre-existing code comment (from
+whenever the autofocus-race fix was originally built) already documents
+that React 19 StrictMode double-mounts components once in dev to surface
+effect bugs — a defining, dev-only behavior stripped entirely from
+production builds. That double-mount cycle racing against the
+autofocus-on-mount effect is almost certainly the pause the user is
+seeing, and it will not occur in the packaged installer build. No code
+change was made — this was purely a verify-before-answering exercise.
+
 ## Release roadmap (agreed with user — work through in this order)
 
 Grouped into batches of related work rather than one flat backlog, per user
@@ -2227,15 +2389,34 @@ already built:
     named explicitly, `nodesep` tuned down slightly for tighter vertical
     stacking. A cloud-shaped trust boundary rendering slightly squished
     under the new orientation was noted and accepted as-is, not a blocker.
+- **Release 16 — Ship Readiness (v1.0)** ✅ done and verified, all five
+  stages — see "Ship readiness (Release 16)" under "What's built" for the
+  full writeup:
+  - **✅ Stage A — ribbon stability & reordering**: fixed the tab bar
+    physically shifting when switching views, reordered the shape palette,
+    fixed a stale Tidy Up tooltip.
+  - **✅ Stage B — six automation-gap hookups**: mobile device-permission
+    booleans, `publiclyAccessible`, `httpOnlyCookie`, `containsCookies`,
+    `isolationLevel`, `vendorManaged` — all now feed STRIDE/DREAD.
+  - **✅ Stage C — regulatory citation nits**: CIS Controls v8 → v8.1
+    relabel applied; the CWE-345 swap the review suggested was deliberately
+    not applied — see the writeup for why.
+  - **✅ Stage D — Dashboard visual identity + Getting Started**: a
+    decorative triangular-mesh header background, and the app's first
+    help/onboarding dialog (workflow guide + real keyboard shortcuts).
+  - **✅ Stage E — shipped**: docs rewrite, fresh installer build verified,
+    pushed to GitHub.
 
 ## Backlog (explicitly deferred, in rough priority order per most recent conversation)
 
-**Empty as of Release 15** — the two items that had been here since
-Release 2 (parallel-edge endpoint visual polish, Tidy Up layout quality)
-are both done; see "Layout & edge polish (Release 15)" under "What's
-built" for the full writeup. The user's explicit next step is a full
-backlog/requirements review to scope whatever comes next, rather than
-assuming a direction — nothing is queued here yet.
+**Empty as of Release 16 — the project is at its planned v1.0 scope.** The
+two items that had been here since Release 2 (parallel-edge endpoint visual
+polish, Tidy Up layout quality) closed in Release 15; the three-part review
+that ran in Release 16 (functionality gaps, regulatory audit, competitive
+landscape) surfaced 8 small findings, all folded into Release 16 itself
+rather than parked here. Nothing is queued — further work from here is
+incremental post-1.0 updates, per the user's own framing, not a backlog to
+work through.
 
 (Five other items previously tracked here — the unsaved-changes guard,
 trust boundary shape editing after creation, the recent-custom-colors bug,

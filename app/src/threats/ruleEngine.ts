@@ -145,6 +145,15 @@ export function generateThreats(diagram: Diagram): Threat[] {
     if (node.data.elementType === 'process') {
       const attrs = node.data.attributes ?? {}
       const highPrivRunningAs = ['Kernel', 'System', 'Administrator'].includes(attrs.runningAs as string)
+      const isIsolated = ['AppContainer', 'Low Integrity Level', 'Sandbox'].includes(attrs.isolationLevel as string)
+      const devicePerms = [
+        attrs.deviceLocationContacts === true && 'location/contacts/calendar',
+        attrs.deviceCamera === true && 'camera/microphone',
+        attrs.deviceMessaging === true && 'SMS/messaging data',
+        attrs.deviceCredentials === true && 'cached credentials',
+      ]
+        .filter((v): v is string => Boolean(v))
+        .join(', ')
       ;(['S', 'T', 'R', 'I', 'D', 'E'] as StrideCategory[]).forEach((cat) => {
         let desc = processDescription(cat, label)
         if (cat === 'S' && attrs.implementsAuthentication === false) {
@@ -155,6 +164,9 @@ export function generateThreats(diagram: Diagram): Threat[] {
         }
         if (cat === 'E' && highPrivRunningAs) {
           desc += ` This process runs as ${attrs.runningAs} — a compromise yields elevated privileges immediately.`
+        }
+        if (cat === 'E' && isIsolated) {
+          desc += ` This process runs isolated (${attrs.isolationLevel}) — a compromise is contained with a reduced blast radius.`
         }
         if (cat === 'T' && attrs.sanitizesInput === false) {
           desc += ' Input is not sanitized — check for injection vulnerabilities.'
@@ -167,6 +179,9 @@ export function generateThreats(diagram: Diagram): Threat[] {
         }
         if (cat === 'I' && attrs.usesAI === true) {
           desc += ' AI/ML processing here could leak training data or sensitive inference inputs/outputs if not properly isolated — verify what is logged, cached, or reused for further training.'
+        }
+        if (cat === 'I' && devicePerms) {
+          desc += ` This process declares access to sensitive device data (${devicePerms}) — verify it is not logged, cached, or transmitted beyond what's necessary.`
         }
         if (cat === 'I' || cat === 'T' || cat === 'R') desc += complianceNote(tags, pciScope)
         threats.push(
@@ -192,20 +207,36 @@ export function generateThreats(diagram: Diagram): Threat[] {
         attrs.dataClassification === 'Confidential' ||
         attrs.dataClassification === 'Restricted' ||
         attrs.storesCredentials === true ||
+        attrs.publiclyAccessible === true ||
         hasComplianceTags
       const encryptedAtRest = attrs.encryptedAtRest === true
+      const storeDevicePerms = [
+        attrs.deviceLocationContacts === true && 'location/contacts/calendar',
+        attrs.deviceMessaging === true && 'SMS/messaging data',
+        attrs.deviceCredentials === true && 'cached credentials',
+      ]
+        .filter((v): v is string => Boolean(v))
+        .join(', ')
       ;(['T', 'I', 'D'] as StrideCategory[]).forEach((cat) => {
         let desc = dataStoreDescription(cat, label)
         if (cat === 'I' && sensitive && !encryptedAtRest) {
-          const reason = attrs.storesCredentials
-            ? 'stores credentials'
-            : hasComplianceTags
-              ? `is in scope for ${complianceTagList(tags!, pciScope)}`
-              : `is classified as ${attrs.dataClassification}`
+          const reason = attrs.publiclyAccessible
+            ? 'is marked publicly accessible'
+            : attrs.storesCredentials
+              ? 'stores credentials'
+              : hasComplianceTags
+                ? `is in scope for ${complianceTagList(tags!, pciScope)}`
+                : `is classified as ${attrs.dataClassification}`
           desc += ` This store ${reason} and does not have "Encrypted" confirmed — treat as high priority.`
           if (hasComplianceTags && node.data.complianceNotes) desc += ` ${node.data.complianceNotes}`
         } else if (cat === 'I' && hasComplianceTags) {
           desc += complianceNote(tags, pciScope, node.data.complianceNotes)
+        }
+        if (cat === 'I' && attrs.httpOnlyCookie === false) {
+          desc += ' This cookie is not marked HTTP-only — accessible to client-side scripts, raising session-token theft risk via XSS.'
+        }
+        if (cat === 'I' && storeDevicePerms) {
+          desc += ` This store holds sensitive device data synced from the device (${storeDevicePerms}).`
         }
         if (cat === 'T' && attrs.signed === false) {
           desc += ' Data is not signed — unauthorized modification may go undetected.'
@@ -273,8 +304,19 @@ export function generateThreats(diagram: Diagram): Threat[] {
       if (cat === 'I' && edgeAttrs.providesConfidentiality === false) {
         desc += ' This flow does not provide confidentiality — data may be readable in transit.'
       }
+      if (cat === 'I' && edgeAttrs.containsCookies === true && edgeAttrs.providesConfidentiality === false) {
+        desc += ' This flow carries cookies without confidentiality protection — session tokens may be exposed in transit.'
+      }
       if (cat === 'I' && target.data.elementType === 'external-entity' && target.data.attributes?.usesThirdPartyAIProvider === true) {
         desc += ` This flow sends data to ${target.data.label}, a declared third-party AI/LLM provider — verify no PII, secrets, or proprietary data is included without an appropriate data processing agreement.`
+      }
+      if (
+        cat === 'I' &&
+        target.data.elementType === 'external-entity' &&
+        target.data.attributes?.usesThirdPartyAIProvider !== true &&
+        target.data.attributes?.vendorManaged === true
+      ) {
+        desc += ` This flow sends data to ${target.data.label}, a declared vendor-managed third party — verify data handling terms are covered by an appropriate agreement.`
       }
       if (wireless) {
         desc += ` Transport is over ${edgeAttrs.physicalNetwork}, which raises interception risk.`
