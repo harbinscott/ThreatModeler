@@ -79,7 +79,14 @@ export function autoLayoutDiagram(diagram: Diagram): DiagramNode[] {
     const memberIds = new Set(members.map((m) => m.id))
 
     const mg = new dagre.graphlib.Graph()
-    mg.setGraph({ rankdir: 'TB', nodesep: 60, ranksep: 90, marginx: 0, marginy: 0 })
+    // 'LR' (horizontal, left-to-right) instead of the original 'TB' — most
+    // monitors are wider than tall, so a flow that grows rightward makes
+    // better use of the available window than one that grows downward and
+    // needs scrolling. `ranker: 'network-simplex'` is dagre's default and
+    // already minimizes total weighted edge length subject to the ranking
+    // constraints (not a new objective bolted on) — named explicitly here
+    // so the intent isn't silently dependent on a library default.
+    mg.setGraph({ rankdir: 'LR', nodesep: 50, ranksep: 90, marginx: 0, marginy: 0, ranker: 'network-simplex' })
     mg.setDefaultEdgeLabel(() => ({}))
     for (const m of members) {
       mg.setNode(m.id, { width: m.measured?.width ?? NODE_WIDTH_FALLBACK, height: m.measured?.height ?? NODE_HEIGHT_FALLBACK })
@@ -109,7 +116,7 @@ export function autoLayoutDiagram(diagram: Diagram): DiagramNode[] {
   const macroIdOf = (nodeId: string): string => parentOf.get(nodeId) ?? nodeId
 
   const g = new dagre.graphlib.Graph()
-  g.setGraph({ rankdir: 'TB', nodesep: 80, ranksep: 110, marginx: 40, marginy: 40 })
+  g.setGraph({ rankdir: 'LR', nodesep: 70, ranksep: 110, marginx: 40, marginy: 40, ranker: 'network-simplex' })
   g.setDefaultEdgeLabel(() => ({}))
 
   for (const [boundaryId, micro] of microByBoundary) {

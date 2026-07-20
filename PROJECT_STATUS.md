@@ -122,24 +122,36 @@ obvious from the code alone.
    before any UI existed (multi-line `depends_on` arrays silently breaking,
    and a heredoc placeholder token that looked like a new heredoc opener to
    a second internal scan pass).
-8. Releases 6 (mitigation elements), 7 (threat intelligence grounding), 8
+8. **✅ Release 15 — Layout & Edge Polish — done and verified, both
+   stages.** Closes out the last two items that had been sitting in the
+   Backlog since Release 2. Parallel-edge endpoint spacing
+   (`FloatingEdge.tsx`) now scales to the connected nodes' own size instead
+   of using flat pixel constants — mocked up via the visualize tool first
+   (small-node vs large-node, current-vs-proposed comparison) and approved
+   before touching code, same pattern the ribbon redesign used. Tidy Up's
+   dagre passes (`autoLayout.ts`) switched from top-to-bottom to
+   left-to-right orientation, a better fit for wide monitors. See "Layout &
+   edge polish (Release 15)" under "What's built" for the full writeup,
+   including a minor cosmetic quirk noted during live testing (a
+   cloud-shaped trust boundary can render slightly squished under the new
+   LR orientation, still fully identifiable — user confirmed this is fine
+   as-is, not worth a follow-up fix right now).
+9. Releases 6 (mitigation elements), 7 (threat intelligence grounding), 8
    (diagram scalability), 9 (SDLC integration), 10 (AI risk surface & API
    Gateway), 11 (reporting & risk register enhancements), 12 (stretch:
    crown jewels, reviewer comments, attack-path analysis, custom rules),
    13 (requirements gap coverage: compliance tags, ATT&CK citations, DREAD
    rubric, SARIF/OTM export, control verification states, auditor
-   compliance view, project templates, risk-trend dashboard), and 14
-   (Terraform import, editor safety & polish, threat-analysis visibility)
-   are all done and fully verified — see "What's built" below for the full
-   writeups.
-9. Two small backlog items remain, both low priority and purely visual
-   polish, none blocking: further parallel-edge endpoint visual polish, and
-   Tidy Up layout *quality* (edge-length minimization, horizontal/left-to-
-   right default orientation — explicitly scoped as polish, distinct from
-   the correctness bug already fixed, see item 1 above). See Backlog below.
-10. Everything is committed and pushed to
+   compliance view, project templates, risk-trend dashboard), 14
+   (Terraform import, editor safety & polish, threat-analysis visibility),
+   and 15 (parallel-edge spacing + Tidy Up LR orientation) are all done and
+   fully verified — see "What's built" below for the full writeups.
+10. **No backlog items remain** — see Backlog below. The user's explicit
+    next step (not yet started) is a full backlog/requirements review to
+    scope whatever comes next, rather than assuming a direction.
+11. Everything is committed and pushed to
     `https://github.com/harbinscott/ThreatModeler` (`main` branch) as of
-    the end of this session, including all four stages of Release 14.
+    the end of this session, including both stages of Release 15.
 
 ## What this is
 
@@ -1865,6 +1877,59 @@ showing the full/current picture.
   now mentions the toggle as an alternative when "Sensitive assets" has
   nothing to show, instead of only suggesting tagging something.
 
+**Layout & edge polish (Release 15)** — done and verified, both stages.
+Closes the last two items that had been sitting in the Backlog since
+Release 2 ("parallel-edge spacing tune... user flagged this as needing more
+design work beyond just the numbers").
+
+*Stage A — parallel-edge endpoint visual design pass*: `FloatingEdge.tsx`'s
+old `ENDPOINT_SPACING`/`PARALLEL_SPACING` were flat pixel constants (20/32)
+applied identically regardless of node size — on a small node, the offset
+could exceed half the node's own width/height, so sibling edges bunched up
+right at the corners instead of spreading evenly; on a large node, the same
+flat offset barely used the available boundary length, leaving edges
+huddled near the center. New `parallelSpacing(source, target)` computes
+`endpoint = clamp(minDim * 0.22, 8, 30)` (where `minDim` is the smaller of
+both connected nodes' width/height) and `curve = endpoint * 1.6`, so spacing
+now scales with whatever pair of nodes an edge actually connects.
+**Mocked up before writing any code** — a two-scenario (small nodes / large
+nodes), two-approach (current fixed-px / proposed proportional) SVG
+comparison built with the visualize tool, using a JS port of the app's own
+`getNodeIntersection()` math so the mockup's geometry matched real on-screen
+behavior rather than an approximation — approved by the user before
+implementation, same "mock up, approve, build" sequence the ribbon redesign
+(Release 2) used for a similarly subjective visual-design decision.
+
+*Stage B — Tidy Up layout quality*: `autoLayout.ts`'s two dagre passes
+(micro: per-boundary member layout; macro: boundaries + unboundaried nodes)
+both switched `rankdir` from `'TB'` to `'LR'` — a diagram now grows
+left-to-right instead of top-to-bottom, a better fit for wide monitors than
+a tall column that needs scrolling. `ranker: 'network-simplex'` was named
+explicitly on both passes (it's dagre's own default, not a new setting) so
+the "minimize total edge length" intent isn't silently riding on an
+unstated library default; true edge-length minimization beyond what
+network-simplex already does within the ranking constraints wasn't pursued
+further — the backlog item's own scoping note called this "more
+investigation" territory, not required for this pass. `nodesep` was tuned
+down slightly (60→50 micro, 80→70 macro) to keep parallel branches more
+compact vertically, since LR layouts stack siblings vertically and that's
+typically the tighter dimension on a wide monitor; `ranksep` (horizontal
+spacing between layers) was left unchanged. **A testing wrinkle worth
+recording**: the user's first report of this looking "much better" was
+about clicking the Tidy Up button on a diagram that still had the *old*
+top-to-bottom ranking — before stage B shipped, only stage A's edge-spacing
+fix was live, so the actual thing they were praising was cleaner-looking
+edges after Tidy Up repositioned nodes, not a different arrangement
+algorithm. Caught by asking a direct clarifying question rather than
+assuming stage B was already satisfied, and confirmed via `grep`ping
+`autoLayout.ts` for `rankdir` before responding rather than taking the
+claim at face value — consistent with this project's "verify claims
+against real code" discipline. **Known minor cosmetic quirk, accepted
+as-is**: a cloud-shaped trust boundary can render slightly squished under
+the new LR-oriented member layout — still fully identifiable as a cloud,
+and the user confirmed live that it's fine for now rather than worth a
+follow-up fix.
+
 ## Release roadmap (agreed with user — work through in this order)
 
 Grouped into batches of related work rather than one flat backlog, per user
@@ -2151,33 +2216,31 @@ already built:
     scoped into v1 — this release only covers a one-time import into a
     fresh or existing diagram, not a sync/reconciliation workflow; worth
     scoping separately later if wanted.
+- **Release 15 — Layout & Edge Polish** ✅ done and verified, both stages —
+  see "Layout & edge polish (Release 15)" under "What's built" for the full
+  writeup:
+  - **✅ Stage A — parallel-edge endpoint visual design pass**: spacing now
+    scales to the connected nodes' own size instead of flat pixel
+    constants, mocked up and approved before implementation.
+  - **✅ Stage B — Tidy Up layout quality**: `rankdir: 'LR'` (horizontal)
+    instead of `'TB'` in both dagre passes, `ranker: 'network-simplex'`
+    named explicitly, `nodesep` tuned down slightly for tighter vertical
+    stacking. A cloud-shaped trust boundary rendering slightly squished
+    under the new orientation was noted and accepted as-is, not a blocker.
 
 ## Backlog (explicitly deferred, in rough priority order per most recent conversation)
 
-1. **Parallel-edge endpoint visual polish** — spacing constants were tuned
-   once (`ENDPOINT_SPACING`/`PARALLEL_SPACING` in `FloatingEdge.tsx`) but the
-   user still feels it needs a proper design pass, not just bigger numbers.
-   Low priority.
-2. **Tidy Up layout quality** — the Tidy Up bug (nodes rendering outside
-   their trust boundary) is fixed, see "Auto-layout boundary-containment
-   fix" under "What's built" — this item is about the *quality* of an
-   already-correct layout, not a correctness bug. User feedback after
-   confirming the fix: the layout should weight minimizing total edge
-   length (currently dagre just ranks by graph topology with no length
-   objective) and should default to a horizontally-oriented flow rather
-   than top-to-bottom, since most monitors are wider than tall. Explicitly
-   scoped as polish/visual refinement, lower priority than functional work
-   — user's own words: "I think that can go into the visual improvement
-   backlog." Would touch `rankdir` (try `'LR'` instead of `'TB'` in both
-   the micro and macro dagre passes in `autoLayout.ts`) and possibly
-   dagre's `ranksep`/`nodesep`/`align` tuning; true edge-length
-   minimization beyond what dagre's own heuristics already do would need
-   more investigation.
+**Empty as of Release 15** — the two items that had been here since
+Release 2 (parallel-edge endpoint visual polish, Tidy Up layout quality)
+are both done; see "Layout & edge polish (Release 15)" under "What's
+built" for the full writeup. The user's explicit next step is a full
+backlog/requirements review to scope whatever comes next, rather than
+assuming a direction — nothing is queued here yet.
 
 (Five other items previously tracked here — the unsaved-changes guard,
 trust boundary shape editing after creation, the recent-custom-colors bug,
 the "threats may be stale" reminder, and opening Attack Paths to every
-asset — are all done as of Release 14; see "IaC import & backlog cleanup
+asset — are done as of Release 14; see "IaC import & backlog cleanup
 (Release 14)" under "What's built" for the full writeup of each.)
 
 Decided against / explicitly skipped:

@@ -11,14 +11,30 @@ import { getEdgeParams } from './floating'
 import { ThreatBadge } from './ThreatBadge'
 import type { DiagramEdge, DiagramNode } from '../types/project'
 
-const PARALLEL_SPACING = 32
-const ENDPOINT_SPACING = 20
-
 function nodeCenter(node: InternalNode<DiagramNode>) {
   const w = node.measured.width ?? 150
   const h = node.measured.height ?? 50
   const pos = node.internals.positionAbsolute
   return { x: pos.x + w / 2, y: pos.y + h / 2 }
+}
+
+function nodeDims(node: InternalNode<DiagramNode>) {
+  return { w: node.measured.width ?? 150, h: node.measured.height ?? 50 }
+}
+
+/** How far apart parallel sibling edges land, scaled to the smaller of the
+ *  two connected nodes' dimensions instead of a flat pixel value — a fixed
+ *  offset either overshoots a small node's corners (edges bunch up right
+ *  before the boundary) or under-uses a large node's edge (edges stay
+ *  huddled near the center instead of spreading across the available
+ *  space). Clamped at both ends so a tiny icon-sized node still gets a
+ *  usable minimum spread and a huge node doesn't fan out absurdly wide. */
+function parallelSpacing(source: InternalNode<DiagramNode>, target: InternalNode<DiagramNode>) {
+  const s = nodeDims(source)
+  const t = nodeDims(target)
+  const minDim = Math.min(s.w, s.h, t.w, t.h)
+  const endpoint = Math.max(8, Math.min(30, minDim * 0.22))
+  return { endpoint, curve: endpoint * 1.6 }
 }
 
 export function FloatingEdge({
@@ -64,17 +80,19 @@ export function FloatingEdge({
     py = (dx / length) * flip
   }
 
-  const aimOffset = isOffset
-    ? { x: px * offsetSteps * ENDPOINT_SPACING, y: py * offsetSteps * ENDPOINT_SPACING }
-    : undefined
+  const spacing = isOffset ? parallelSpacing(sourceNode, targetNode) : null
+  const aimOffset =
+    isOffset && spacing
+      ? { x: px * offsetSteps * spacing.endpoint, y: py * offsetSteps * spacing.endpoint }
+      : undefined
   const { sx, sy, tx, ty } = getEdgeParams(sourceNode, targetNode, aimOffset)
 
   let path: string
   let labelX: number
   let labelY: number
 
-  if (isOffset) {
-    const curveOffset = offsetSteps * PARALLEL_SPACING
+  if (isOffset && spacing) {
+    const curveOffset = offsetSteps * spacing.curve
     const cx = (sx + tx) / 2 + px * curveOffset
     const cy = (sy + ty) / 2 + py * curveOffset
 
