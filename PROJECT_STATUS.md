@@ -2483,6 +2483,25 @@ Done this session (context for why the code looks the way it does):
   which is expected for a hobby/portfolio build, not a bug. If this project is
   ever moved out of the OneDrive-synced folder, the output path could be
   reverted to a relative `"release"` directory again.
+- **Installer wasn't showing up in Windows 11 Settings → Installed apps
+  (Release 16 follow-up)** — a real user report, root-caused rather than
+  guessed at. The uninstall registry entry (`HKCU\...\Uninstall\{guid}`)
+  genuinely existed and worked (confirmed via `Get-ItemProperty`), but was
+  missing `Publisher`/`InstallLocation` entirely — not blank, absent. The
+  modern Settings app appears to require `Publisher` to list an entry
+  (legacy Control Panel "Programs and Features" is more lenient and would
+  likely still show it). `Publisher` derives from `package.json`'s
+  `author` field, which had been unset the whole project — `electron-
+  builder` had been silently warning `"author is missed"` /
+  `"description is missed"` on literally every single build log without
+  anyone noticing. Fixed by adding both fields to `package.json`; confirmed
+  fixed by re-running the build and seeing both warnings disappear from the
+  log. Also bumped `version` from the untouched Vite-scaffold default
+  `0.0.0` to `0.1.0` in the same pass — the uninstall entry's display name
+  had been showing as the not-very-meaningful "Threat Modeler 0.0.0."
+  Worth remembering: **read every build tool's warning output, even ones
+  that don't fail the build** — this one sat there unactioned for the
+  entire project and turned into a real, confusing user-facing bug.
 - **Fixed a real production-only bug + rebranded to "Threat Modeler"** —
   installing and running that first successful build showed a blank white
   window with `net::ERR_FILE_NOT_FOUND` console errors for the JS/CSS
