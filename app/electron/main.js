@@ -108,6 +108,18 @@ ipcMain.handle('projects:import-file', async (event) => {
   return { canceled: false, project }
 })
 
+ipcMain.handle('iac:import-terraform-file', async (event) => {
+  const parentWindow = BrowserWindow.fromWebContents(event.sender)
+  const { canceled, filePaths } = await dialog.showOpenDialog(parentWindow, {
+    title: 'Import Terraform File',
+    properties: ['openFile'],
+    filters: [{ name: 'Terraform', extensions: ['tf'] }],
+  })
+  if (canceled || filePaths.length === 0) return { canceled: true }
+  const content = await fs.readFile(filePaths[0], 'utf-8')
+  return { canceled: false, fileName: path.basename(filePaths[0]), content }
+})
+
 ipcMain.handle('reports:export-pdf', async (event, { html, suggestedName }) => {
   const parentWindow = BrowserWindow.fromWebContents(event.sender)
   const { canceled, filePath } = await dialog.showSaveDialog(parentWindow, {

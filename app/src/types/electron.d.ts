@@ -25,6 +25,7 @@ declare global {
         suggestedName: string,
         kind: 'sarif' | 'otm'
       ) => Promise<{ canceled: boolean; filePath?: string }>
+      importTerraformFile: () => Promise<{ canceled: boolean; fileName?: string; content?: string }>
     }
   }
 }

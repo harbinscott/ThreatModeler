@@ -7,6 +7,7 @@ import { CHECKBOX_COMPLIANCE_TAGS, COMPLIANCE_TAG_LABELS } from './complianceTag
 import type {
   ArrowStyle,
   AttributeValue,
+  BoundaryShape,
   BoundaryType,
   ComplianceTag,
   CustomFieldDef,
@@ -45,6 +46,18 @@ const BOUNDARY_TYPES: BoundaryType[] = [
   'Sandbox / Isolation Boundary',
   'Kernel/User Mode Boundary',
   'Cloud Account/Tenant Boundary',
+]
+
+/** Release 14 stage C — the visual `boundaryShape` options a trust
+ *  boundary can be edited to after creation, distinct from
+ *  `TrustBoundaryButton.tsx`'s `BOUNDARY_SHAPE_PRESETS` (which also bundle
+ *  a starting width/height for a brand-new boundary) — editing an existing
+ *  boundary's shape shouldn't also resize it out from under whatever the
+ *  user already positioned. */
+const BOUNDARY_SHAPES: { value: BoundaryShape; label: string }[] = [
+  { value: 'rectangle', label: 'Rectangle' },
+  { value: 'circle', label: 'Circle' },
+  { value: 'cloud', label: 'Cloud' },
 ]
 
 /** Small "?" affordance for a brief explanation next to a field's label —
@@ -591,6 +604,22 @@ function NodeInspector({
         >
           {node.data.subDiagramId ? 'Open sub-diagram' : '+ Create sub-diagram'}
         </button>
+      )}
+
+      {node.data.elementType === 'trust-boundary' && (
+        <label className="inspector__field">
+          <span>Boundary shape</span>
+          <select
+            value={node.data.boundaryShape ?? 'rectangle'}
+            onChange={(e) => onUpdate(node.id, { boundaryShape: e.target.value as BoundaryShape })}
+          >
+            {BOUNDARY_SHAPES.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </label>
       )}
 
       {node.data.elementType === 'trust-boundary' && (

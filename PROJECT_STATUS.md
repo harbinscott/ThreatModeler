@@ -20,7 +20,7 @@ obvious from the code alone.
    size mismatch could resurface elsewhere. A layout-*quality* follow-up
    (minimize total edge length, default to horizontal/left-to-right
    orientation for wide monitors) was explicitly scoped as backlog polish,
-   not a correctness fix — see Backlog item 4.
+   not a correctness fix — see Backlog item 2.
 2. **Release 9 — SDLC Integration — done and fully verified, all three
    stages.** See "SDLC integration (Release 9)" under "What's built" below
    for the full writeup. Highlights:
@@ -61,7 +61,9 @@ obvious from the code alone.
      report to a genuine user workflow gap, not a code bug: diagram edits
      don't auto-refresh threats, so a newly-spliced mitigation edge shows
      zero threats until "Regenerate Threats" is clicked again. Logged as
-     Backlog item 6 (a UI nudge for this) per the user's own suggestion.
+     the "threats may be stale" backlog item per the user's own suggestion
+     — built in Release 14 stage D, see "IaC import & backlog cleanup
+     (Release 14)" under "What's built".
    - **A real export bug**: after bumping diagram-capture resolution
      (`pixelRatio: 3`, per user feedback that exports looked too soft to
      read), the user reported connection lines had gone invisible in
@@ -104,42 +106,40 @@ obvious from the code alone.
    Regenerate Threats; a mitigation control raising total threat count
    while still lowering the category score it actually protects) — both
    explained there rather than just asserted.
-7. One more unrelated bug reported in an earlier session, logged but **not
-   yet fixed** per explicit user request (backlog only):
-   `ColorSwatchPicker.tsx`'s "Recent" custom colors all show the same color
-   instead of a history of distinct ones after a single custom pick. Root
-   cause not confirmed — the likely culprit is `<input type="color">`'s
-   `onChange` (which React maps to the native `input` event, firing
-   continuously during a live drag in the OS color picker) calling
-   `addRecentColor()` many times per pick, but `color.ts`'s dedup logic
-   looks correct in isolation on a static read, so this needs interactive
-   debugging before a fix, not a guess. See Backlog below.
+7. **✅ Release 14 — IaC Import (Terraform) & Backlog Cleanup — done and
+   verified, all four stages.** Terraform resource import (a purpose-built
+   parser — a checked npm option was too stale/risky to depend on — plus a
+   resource-type mapping table and an "Import from Terraform" option in the
+   New Project wizard), then two bundles bringing five long-standing
+   backlog items home: editor safety & polish (unsaved-changes guard, trust
+   boundary shape editing after creation, and the recent-custom-colors bug
+   — root cause confirmed and fixed, not just diagnosed), and threat-
+   analysis visibility (a "threats may be stale" badge on Regenerate
+   Threats, and an Attack Paths "All assets" toggle alongside the existing
+   sensitive-assets-only default). See "IaC import & backlog cleanup
+   (Release 14)" under "What's built" for the full writeup, including two
+   real bugs the Terraform parser's own headless verification caught
+   before any UI existed (multi-line `depends_on` arrays silently breaking,
+   and a heredoc placeholder token that looked like a new heredoc opener to
+   a second internal scan pass).
 8. Releases 6 (mitigation elements), 7 (threat intelligence grounding), 8
    (diagram scalability), 9 (SDLC integration), 10 (AI risk surface & API
    Gateway), 11 (reporting & risk register enhancements), 12 (stretch:
    crown jewels, reviewer comments, attack-path analysis, custom rules),
-   and 13 (requirements gap coverage: compliance tags, ATT&CK citations,
-   DREAD rubric, SARIF/OTM export, control verification states, auditor
-   compliance view, project templates, risk-trend dashboard) are all done
-   and fully verified — see "What's built" below for the full writeups.
-9. One more item came in from Release 3 testing and was folded into the
-   roadmap rather than built immediately: an unsaved-changes guard (warn
-   before navigating away from an edited-but-unsaved diagram) — Backlog
-   item 1 below, small and a real data-safety gap. Not started.
-10. Five small backlog items remain, all low priority, none blocking:
-   trust boundary shape editing *after* creation (currently creation-time
-   only), further parallel-edge endpoint visual polish, Tidy Up layout
-   *quality* (edge-length minimization, horizontal/left-to-right default
-   orientation — explicitly scoped as polish, distinct from the correctness
-   bug fixed in item 1 above), a "threats may be stale" reminder after
-   diagram changes (found live during Release 11 testing, resurfaced during
-   Release 13 stage H testing — user's call: plan a real fix into a future
-   release rather than patch it ad hoc), and opening Attack Paths up to
-   every asset rather than just crown-jewel/compliance-tagged ones
-   (explicitly scoped as post-1.0). See Backlog below.
-11. Everything is committed and pushed to
+   13 (requirements gap coverage: compliance tags, ATT&CK citations, DREAD
+   rubric, SARIF/OTM export, control verification states, auditor
+   compliance view, project templates, risk-trend dashboard), and 14
+   (Terraform import, editor safety & polish, threat-analysis visibility)
+   are all done and fully verified — see "What's built" below for the full
+   writeups.
+9. Two small backlog items remain, both low priority and purely visual
+   polish, none blocking: further parallel-edge endpoint visual polish, and
+   Tidy Up layout *quality* (edge-length minimization, horizontal/left-to-
+   right default orientation — explicitly scoped as polish, distinct from
+   the correctness bug already fixed, see item 1 above). See Backlog below.
+10. Everything is committed and pushed to
     `https://github.com/harbinscott/ThreatModeler` (`main` branch) as of
-    the end of this session, including all eight stages of Release 13.
+    the end of this session, including all four stages of Release 14.
 
 ## What this is
 
@@ -970,7 +970,8 @@ found two things layered on top of each other:
 
 Once regenerated, the mitigation credit showed up exactly as designed. The
 user's own suggestion after hitting this — a UI nudge when threats might
-be stale — is logged as Backlog item 6, since it's a genuinely easy trap
+be stale — was logged as a backlog item (since built, Release 14 stage D)
+since it's a genuinely easy trap
 (a diagram edit *looks* complete with no indication that Threats now
 disagrees with it) and cost real debugging time before the actual cause
 surfaced.
@@ -1537,9 +1538,9 @@ freeform text for custom properties). Extended `Modal.css`'s shared
 input/textarea) and added generic `.modal-field-row`/`.modal-button-row`
 helpers — reusable by any future dialog, not just this one. Same manual
 "click Regenerate Threats to see new matches" convention every other
-threat-affecting change in this app already follows (Backlog item 6 already
-tracks the general "was this reflected?" trap this shares with everything
-else here).
+threat-affecting change in this app already follows (the "threats may be
+stale" reminder, Release 14 stage D, covers the general "was this
+reflected?" trap this shares with everything else here).
 
 **Requirements gap coverage (Release 13)** — done and verified, all eight
 stages (A-H) (see "Release roadmap" below for the full scope and order).
@@ -1714,8 +1715,155 @@ Also mid-release: the Attack Paths tab was briefly renamed to "Critical
 Asset Paths" (to make its crown-jewel/compliance-only scoping explicit
 after a fresh template project's tab looked broken with nothing tagged),
 then reverted back to "Attack Paths" per user preference — net no change,
-but it surfaced a real product question logged as a deliberate backlog
-item rather than acted on now: see Backlog item 7 below.
+but it surfaced a real product question that became Release 14 stage D's
+"All assets" toggle — see "IaC import & backlog cleanup (Release 14)"
+below.
+
+**IaC import & backlog cleanup (Release 14)** — done and verified, all
+four stages. See "Release roadmap" below for the full stage-by-stage
+scope.
+
+*Stage A — Terraform parser + resource-mapping engine*: new
+`iac/terraformParser.ts` — a purpose-built resource-block extractor, not a
+full HCL2 grammar and deliberately not built on `@evops/hcl-terraform-
+parser` (the main npm option for this): checked it first and found it last
+published in 2020, no TypeScript types, a 6-star/2-open-issue repo — too
+much risk of silent misbehavior on modern Terraform syntax for a
+dependency this load-bearing. Instead, a single linear scanner
+(`scan()`) does comment-stripping, string-literal awareness, and heredoc
+handling (`<<EOF ... EOF` / `<<-EOF ... EOF` collapsed to an opaque
+placeholder — content is skipped for brace-counting purposes rather than
+walked character-by-character, since heredoc bodies routinely contain
+`{`/`}` themselves, e.g. embedded JSON or shell scripts, which would
+otherwise desynchronize block-boundary detection) in one pass, tracking a
+single merged brace+bracket depth counter (HCL always nests `{}`/`[]`
+properly, so one counter suffices for both `findMatchingBrace()` and the
+top-level-statement splitter). `parseTerraformResources()` finds every
+`resource "type" "name" { ... }` block, extracts shallow top-level
+`key = value` attributes and `depends_on` entries, and detects implicit
+cross-resource references by scanning each resource's body text for other
+declared resources' `type.name` addresses — without evaluating expressions,
+functions, `for_each`/`count`, or resolving `module` calls, all left as
+opaque raw text on purpose. New `iac/terraformMapping.ts`:
+`TERRAFORM_RESOURCE_MAP`, an AWS-focused (not exhaustive) table from
+common resource types to this app's element types/stencils — reuses
+existing stencils where a genuine match exists (e.g.
+`aws_api_gateway_rest_api` → the Release 10 API Gateway mitigation
+stencil). Deliberately excludes IAM/networking-plumbing resources (they
+configure access/connectivity for the mapped resources, not threat-model
+elements in their own right) and never generates `external-entity` nodes
+— Terraform has no resource type for "a user," so an imported diagram
+never gets one automatically; documented as a known v1 limitation, not a
+bug, and the import summary (stage B) says so explicitly. Verified with a
+hand-written headless test script (no test runner is set up in this repo,
+consistent with the project's "manual verification" pattern) against
+comments, a heredoc, a nested block, a multi-line `depends_on`, an
+implicit attribute reference, and an unrecognized resource type — this
+caught two real bugs before any UI existed: (1) only `{`/`}` were being
+tracked, not `[`/`]`, so multi-line `depends_on` arrays were silently
+split apart at the wrong points — fixed by merging bracket and brace
+depth into one counter; (2) the collapsed heredoc placeholder text itself
+started with `<<`, so `topLevelStatements()`'s own internal re-scan of an
+already-cleaned resource body misread the placeholder as *another* heredoc
+opener with no terminator, silently swallowing every attribute after it
+— fixed by picking a placeholder (`__HEREDOC__`) that can't collide with
+the heredoc regex. Both were real, not theoretical: the second one was
+introduced by a bug fix for the first, and would have shipped as a
+silent-attribute-loss bug for any resource block containing a heredoc if
+the headless test hadn't been run before wiring up the UI.
+
+*Stage B — Import UI + diagram generation*: new `iac/terraformImport.ts`'s
+`importTerraformSource()` builds a `DiagramNode` per recognized resource
+(unrecognized types collected into a `skippedTypes` summary set) and a
+`DiagramEdge` per `depends_on`/reference pair, pointing dependency →
+dependent (e.g. a security group's edge points *to* the instance it
+protects, matching "traffic flows through the security group to reach the
+instance" — the more meaningful DFD direction, not "the instance depends
+on the security group existing first"). Positions come from the existing
+`autoLayoutDiagram()` (Release 8's dagre pass) rather than fixed
+coordinates, since resource count/shape is unpredictable unlike Release 13
+stage G's hand-tuned templates. New `reports:export-model`-style IPC
+handler (`iac:import-terraform-file`) opens a native file picker scoped to
+`.tf` files. `NewProjectWizard.tsx` gained an "Import from Terraform" card
+alongside the template picker — clicking it triggers the file picker
+immediately (async, unlike template selection which is synchronous), shows
+an inline summary (elements imported, flows inferred, resources skipped
+with their unrecognized types named) or a "no recognized resources found"
+guard if nothing mapped, and a `TERRAFORM_IMPORT_ID` sentinel keeps it
+mutually exclusive with the template cards without needing a second
+top-level "mode" field on the wizard's state.
+
+*Stage C — Editor safety & polish bundle*: three independent,
+long-standing backlog items, bundled since all three are small, no-new-
+architecture fixes.
+- **Unsaved-changes guard**: `comparableSnapshot()` picks the fields that
+  actually constitute unsaved work (name/description/frameworks/diagram/
+  threats/pasta/info/notes/customStencils/customRules/subDiagrams,
+  deliberately excluding `id`/`createdAt`/`updatedAt`/`revisionHistory`/
+  `revisionCount`, which change on every save regardless of any real edit)
+  and is computed on demand — once at load, once after every successful
+  save — rather than as a continuously-updated "dirty" boolean threaded
+  through every mutator in `Canvas.tsx`. `hasUnsavedChanges()` re-derives
+  the same shape from current state and diffs it against that baseline at
+  the moment the user clicks "Projects," reusing the same lightweight
+  `window.confirm` pattern `restoreRevision()` (Release 9) already
+  established for an analogous "you'll lose unsaved work" warning, rather
+  than building a new three-button Save/Discard/Cancel modal.
+- **Trust boundary shape editing after creation**: new "Boundary shape"
+  select in the Inspector for existing trust-boundary nodes, deliberately
+  separate from `TrustBoundaryButton.tsx`'s `BOUNDARY_SHAPE_PRESETS` (which
+  bundle a starting width/height for a *new* boundary) — editing an
+  existing boundary's shape shouldn't also resize it out from under
+  whatever the user already positioned.
+- **Recent custom colors bug**: root cause confirmed, not just diagnosed.
+  `<input type="color">`'s `onChange` maps to the native `input` event,
+  which Chromium's own color-picker UI fires *continuously* while the user
+  drags across the wheel/slider, not once on confirm — so a single pick
+  gesture was calling `addRecentColor()` many times, filling the "Recent"
+  row with near-identical or literally-identical intermediate values from
+  one drag. Fixed in `ColorSwatchPicker.tsx` by moving the
+  `addRecentColor()` call to `onBlur` (fires once, when the native picker
+  actually closes) while `onChange` still drives live preview as before —
+  the swatch still updates in real time while dragging, only the history
+  write is now gated to the final committed value.
+- Also found and fixed live during testing, not a code bug: the new
+  Boundary shape select briefly appeared completely unclickable — turned
+  out to be a stale Vite HMR module in an already-open window from earlier
+  in the session (this file had been edited several times), resolved by
+  testing in a freshly-relaunched window. Worth remembering for any future
+  "this looks broken" report on a file that's been hot-reloaded many times
+  in one session: retest in the newest window before assuming it's a real
+  bug.
+
+*Stage D — Threat-analysis visibility & completeness bundle*: two related
+backlog items, bundled since both are about existing analysis views not
+showing the full/current picture.
+- **"Threats may be stale" reminder**: a ref-based baseline
+  (`lastRegeneratedSnapshotRef`, a serialized `{nodes, edges}` snapshot)
+  reset whenever the *currently active level's* threats are regenerated
+  **or** whenever a level is freshly loaded/navigated to (arriving at a
+  level counts as "not stale yet" — its stored threats presumably already
+  reflect that content; only edits made afterward without an intervening
+  regenerate should light it up), including the temporary level-hops the
+  PDF export does to screenshot each sub-diagram, which restore the
+  original level's baseline correctly when export finishes. Drives a
+  `btn--warning` style + a small "!" badge on "Regenerate Threats,"
+  computed as a plain value on every render (not a `useMemo`, since
+  regenerating updates the ref without `nodes`/`edges` themselves
+  changing, which a dependency-keyed memo wouldn't know to recompute).
+- **Attack Paths "All assets" toggle**: `sensitiveTargets()`/
+  `computeAttackPaths()` gained an `includeAll` parameter that drops the
+  crown-jewel/compliance requirement while keeping the same Process/Data
+  Store scope (not External Entities — attacker-side, never a reachability
+  *target* — and not Mitigation/Trust Boundary nodes, which aren't
+  "assets" in this app's sense). New Sensitive/All pill toggle in the
+  Attack Paths tab, default "Sensitive assets" (today's original,
+  still-recommended behavior — an unscoped view mostly restates the
+  diagram's own connectivity and gets noisy on a real diagram), with a
+  `'Included via "All assets" view'` fallback reason chip for elements
+  that have no crown-jewel/compliance reason of their own. The empty state
+  now mentions the toggle as an alternative when "Sensitive assets" has
+  nothing to show, instead of only suggesting tagging something.
 
 ## Release roadmap (agreed with user — work through in this order)
 
@@ -1965,47 +2113,52 @@ already built:
     desktop app doesn't have and isn't trying to be — building any of
     these would be a different kind of product, not an extension of this
     one.
-- **Release 14 — IaC Import** *(split out of Release 12 per explicit user
-  request; not started)*. Import Terraform/CloudFormation (and possibly
-  ARM/Bicep, Pulumi) definitions and generate starter diagram elements
-  from the declared infrastructure — a jump-start for modeling an
-  already-provisioned system rather than drawing it by hand. Deliberately
-  kept separate from the rest of Release 12: it's valuable but doesn't
-  improve anything about a diagram that's already built, so it shouldn't
-  gate the smaller, more immediately useful items (crown-jewel tagging,
-  reviewer comments, attack-path analysis, custom rules). Needs its own
-  scoping pass before starting — likely questions: which IaC formats to
-  support first (Terraform HCL is the most common, but parsing it
-  properly needs a real parser, not regex), how resource types map to
-  DFD element types/stencils (an AWS S3 bucket is clearly a Data Store,
-  but a Lambda function or ECS service needs judgment calls), how
-  generated elements interact with existing manual-edit-preservation
-  patterns (`mergeThreats()`'s "don't clobber user edits" precedent is
-  probably the right model), and whether re-importing after infra changes
-  should update existing elements in place or just add new ones.
+- **Release 14 — IaC Import (Terraform) & Backlog Cleanup** ✅ done and
+  verified, all four stages — *(split out of Release 12 per explicit user
+  request; scope narrowed to Terraform-only for v1, "call it good there for
+  now" per the user, with other formats explicitly left for a future pass
+  if wanted)*. See "IaC import & backlog cleanup (Release 14)" under
+  "What's built" for the full writeup:
+  - **✅ Stage A — Terraform parser + resource-mapping engine** — a
+    purpose-built resource-block extractor (checked the main npm option
+    first, `@evops/hcl-terraform-parser`, and rejected it: stale since
+    2020, no TypeScript types, too risky to depend on), string/heredoc/
+    bracket-aware, plus an AWS-focused resource-type → element/stencil
+    mapping table. Headless-verified before any UI existed, catching two
+    real bugs (multi-line `depends_on` arrays, a heredoc-placeholder
+    self-collision) that would otherwise have shipped as silent data loss.
+  - **✅ Stage B — Import UI + diagram generation** — a native `.tf` file
+    picker, auto-laid-out diagram generation (dependency → dependent edge
+    direction), and an "Import from Terraform" option in the New Project
+    wizard with an inline import summary.
+  - **✅ Stage C — Editor safety & polish bundle** — three independent
+    backlog items: an unsaved-changes guard on the "Projects" back button,
+    trust boundary shape editing after creation (previously creation-time
+    only), and the recent-custom-colors bug (root cause confirmed and
+    fixed: the native color-wheel input's continuous `onChange` firing
+    during a drag, not just `color.ts`'s already-correct dedup logic).
+  - **✅ Stage D — Threat-analysis visibility & completeness bundle** —
+    two related backlog items: a "threats may be stale" badge on
+    Regenerate Threats, and an Attack Paths "All assets" toggle alongside
+    the existing sensitive-assets-only default (kept as the default —
+    an unscoped view mostly restates the diagram's own connectivity and
+    gets noisy on a real diagram).
+  - Every generated resource-type mapping (`iac/terraformMapping.ts`) is
+    reused where an equivalent already exists — e.g. `aws_api_gateway_rest_
+    api` maps to the Release 10 API Gateway mitigation stencil — rather
+    than inventing a parallel catalog. How re-importing after infra
+    changes should behave (update in place vs. add new) was **not**
+    scoped into v1 — this release only covers a one-time import into a
+    fresh or existing diagram, not a sync/reconciliation workflow; worth
+    scoping separately later if wanted.
 
 ## Backlog (explicitly deferred, in rough priority order per most recent conversation)
 
-1. **Unsaved-changes guard** — added this session, user-flagged as a real
-   data-safety gap while testing Release 3. Right now the Canvas back arrow
-   (and presumably project switch/close) discards any unsaved diagram edits
-   with no warning. Needs: a "dirty" flag (compare current nodes/edges/
-   project state against the last-saved snapshot, or simpler — a boolean set
-   by any mutation and cleared by `save()`), and a confirm dialog on
-   navigate-away offering Save / Discard / Cancel. Small, self-contained,
-   worth doing before it costs someone real work.
-2. **Trust boundary shape editing after creation** — shape can only be
-   picked at creation time via the toolbar preset; there's no way to change
-   an existing boundary's shape afterward. The Inspector shows nothing
-   boundary-specific beyond Name/Description/Color/Boundary type (added in
-   Release 3). Small, contained addition if wanted (add a shape selector to
-   `NodeInspector` in `Inspector.tsx`, gated on `elementType ===
-   'trust-boundary'`).
-3. **Parallel-edge endpoint visual polish** — spacing constants were tuned
+1. **Parallel-edge endpoint visual polish** — spacing constants were tuned
    once (`ENDPOINT_SPACING`/`PARALLEL_SPACING` in `FloatingEdge.tsx`) but the
    user still feels it needs a proper design pass, not just bigger numbers.
    Low priority.
-4. **Tidy Up layout quality** — the Tidy Up bug (nodes rendering outside
+2. **Tidy Up layout quality** — the Tidy Up bug (nodes rendering outside
    their trust boundary) is fixed, see "Auto-layout boundary-containment
    fix" under "What's built" — this item is about the *quality* of an
    already-correct layout, not a correctness bug. User feedback after
@@ -2020,65 +2173,12 @@ already built:
    dagre's `ranksep`/`nodesep`/`align` tuning; true edge-length
    minimization beyond what dagre's own heuristics already do would need
    more investigation.
-5. **Recent custom colors all show the same color** — user-reported (with
-   screenshot) during Release 8 testing: picking one custom color via the
-   native color-wheel input makes all 5 "Recent" swatch boxes in
-   `ColorSwatchPicker.tsx` show that same color, instead of a history of up
-   to 5 distinct recently-used ones. Explicitly logged as backlog-only, not
-   fixed, per user request ("doesn't affect functionality"). Root cause
-   **not confirmed** — `color.ts`'s `addRecentColor()` dedup logic reads
-   correctly on a static pass (filters the new hex out of existing entries,
-   prepends it, slices to 5 — shouldn't be able to produce 5 identical
-   entries from that alone). Leading hypothesis: `<input type="color">`'s
-   `onChange` in `ColorSwatchPicker.tsx` — which React wires to the native
-   `input` event, not `change` — fires continuously during a live drag
-   inside the OS color picker (not just once on confirm), so a single pick
-   gesture could call `pickCustom()` → `addRecentColor()` many times; not
-   verified against an actual repro yet, so treat as a starting point for
-   debugging, not a diagnosis. Needs interactive testing (e.g. temporarily
-   logging each `onChange` firing during a real pick) before attempting a
-   fix.
-6. **Surface a reminder when threats may be stale after diagram changes**
-   — found live while diagnosing a user report during Release 11 testing
-   (see "Reporting & risk register enhancements (Release 11)"
-   under "What's built" for the full debugging story). Splicing a
-   mitigation onto a flow (or any diagram edit) doesn't auto-refresh
-   threats — only clicking "Regenerate Threats" does — so a freshly-spliced
-   edge shows zero threats, and any already-reviewed (DREAD-frozen) threat
-   on an existing edge stays exactly as it was, until the user remembers to
-   click that button again. This is working as designed (regeneration is
-   deliberately manual, not automatic, throughout this app), but it's a
-   very easy trap to fall into and cost real debugging time this session
-   before the actual root cause (forgot to regenerate) was confirmed via
-   direct testing against the live project data. User's own suggestion
-   after hitting it: "Maybe there should be a little notification on the
-   regenerate threats that shows that there are more threats pending
-   refresh." Small, contained UI addition if wanted — e.g. a dirty-diagram
-   flag (nodes/edges changed since the last regenerate) driving a badge or
-   highlight on the "Regenerate Threats" button. **Resurfaced during
-   Release 13 stage H testing**: the new Risk Trend dashboard only updates
-   when threats are regenerated too, for the same underlying reason — user
-   explicitly wants this planned into an upcoming release alongside any
-   other related items, rather than patched in isolation at the tail end
-   of a release ("we can keep the refresh change to an upcoming release
-   when we can plan it out along with any additional related items").
-7. **Open Attack Paths to every asset, not just crown-jewel/compliance-
-   tagged ones** — raised during Release 13 stage H testing, when a fresh
-   template project's Attack Paths tab looked broken (empty) because
-   nothing in it was tagged crown-jewel or compliance-scoped yet. Current
-   design deliberately scopes the tab to "sensitive targets" only (see
-   `sensitiveTargets()` in `attackPath.ts`) — showing reachability for
-   *every* node would mostly restate the diagram's own connectivity graph
-   and be noisy rather than actionable on a real diagram. A brief rename to
-   "Critical Asset Paths" was tried to make that scoping explicit in the
-   tab label itself, then reverted back to "Attack Paths" per user
-   preference (the empty-state message already explains the scoping).
-   User's explicit call: keep the current scoping for now, and treat
-   "open it up to every asset" as a genuine post-1.0 stretch idea rather
-   than something to build before the tool's first full release — would
-   need its own design pass (e.g. a toggle between "sensitive only" and
-   "everything," since an unscoped view for a large diagram could get
-   overwhelming fast).
+
+(Five other items previously tracked here — the unsaved-changes guard,
+trust boundary shape editing after creation, the recent-custom-colors bug,
+the "threats may be stale" reminder, and opening Attack Paths to every
+asset — are all done as of Release 14; see "IaC import & backlog cleanup
+(Release 14)" under "What's built" for the full writeup of each.)
 
 Decided against / explicitly skipped:
 - **Threat diagram screenshot** in the Threats detail panel — would have

@@ -36,15 +36,25 @@ const STATUS_COLOR: Record<Status, string> = {
 
 const STATUS_ORDER: Record<Status, number> = { exposed: 0, protected: 1, unreachable: 2 }
 
+type Scope = 'sensitive' | 'all'
+
 /** Release 12 stage C — for every crown-jewel/compliance-scoped asset in the
  *  current diagram level, shows whether an attacker starting from an
  *  External Entity can reach it, and if so, whether every route crosses a
  *  mitigation or whether at least one route skips them entirely. Scoped to
  *  whichever diagram level is currently loaded, same as every other
  *  diagram-graph analysis in this app (DREAD, threats) — sub-diagrams
- *  (Release 8) are deliberately not rolled up. */
+ *  (Release 8) are deliberately not rolled up.
+ *
+ *  Release 14 stage D added the Sensitive/All scope toggle below, default
+ *  "Sensitive assets" (this view's original, still-recommended behavior —
+ *  showing reachability for *every* asset on a large diagram mostly just
+ *  restates the diagram's own connectivity and gets noisy fast) with "All
+ *  assets" available for the times that broader picture is worth the
+ *  noise. */
 export function AttackPathPanel({ diagram, threats, onViewInDiagram }: AttackPathPanelProps) {
-  const results = useMemo(() => computeAttackPaths(diagram), [diagram])
+  const [scope, setScope] = useState<Scope>('sensitive')
+  const results = useMemo(() => computeAttackPaths(diagram, scope === 'all'), [diagram, scope])
   const entryPointCount = useMemo(
     () => diagram.nodes.filter((n) => n.data.elementType === 'external-entity').length,
     [diagram.nodes]
@@ -70,13 +80,34 @@ export function AttackPathPanel({ diagram, threats, onViewInDiagram }: AttackPat
     return map
   }, [threats])
 
+  const scopeToggle = (
+    <div className="attack-path__scope">
+      <button
+        type="button"
+        className={`attack-path__scope-pill${scope === 'sensitive' ? ' attack-path__scope-pill--active' : ''}`}
+        onClick={() => setScope('sensitive')}
+      >
+        Sensitive assets
+      </button>
+      <button
+        type="button"
+        className={`attack-path__scope-pill${scope === 'all' ? ' attack-path__scope-pill--active' : ''}`}
+        onClick={() => setScope('all')}
+        title="Every Process/Data Store element, not just crown-jewel or compliance-tagged ones — can get noisy on a large diagram"
+      >
+        All assets
+      </button>
+    </div>
+  )
+
   if (results.length === 0) {
     return (
       <div className="attack-path attack-path--empty">
+        {scopeToggle}
         <p>
-          No crown-jewel assets or compliance-tagged Data Stores in this diagram yet. Mark a Process or Data Store as
-          a crown jewel, or tag a Data Store with compliance scope (Inspector), to see whether an attacker can reach
-          it.
+          {scope === 'all'
+            ? 'No Process or Data Store elements in this diagram yet.'
+            : 'No crown-jewel assets or compliance-tagged Data Stores in this diagram yet. Mark a Process or Data Store as a crown jewel, or tag a Data Store with compliance scope (Inspector), to see whether an attacker can reach it — or switch to "All assets" above to see every asset regardless of tagging.'}
         </p>
       </div>
     )
@@ -85,9 +116,11 @@ export function AttackPathPanel({ diagram, threats, onViewInDiagram }: AttackPat
   return (
     <div className="attack-path">
       <div className="attack-path__list">
+        {scopeToggle}
         <p className="attack-path__summary">
-          {results.length} sensitive asset{results.length === 1 ? '' : 's'} · {entryPointCount} External
-          Entit{entryPointCount === 1 ? 'y' : 'ies'} in this diagram
+          {results.length} {scope === 'all' ? 'asset' : 'sensitive asset'}
+          {results.length === 1 ? '' : 's'} · {entryPointCount} External Entit{entryPointCount === 1 ? 'y' : 'ies'} in
+          this diagram
         </p>
         <ul className="attack-path__items">
           {sorted.map((r) => {

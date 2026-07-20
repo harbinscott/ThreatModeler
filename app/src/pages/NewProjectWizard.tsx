@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { FrameworkPicker } from '../components/FrameworkPicker'
 import { PROJECT_TEMPLATES } from '../templates/projectTemplates'
+import { importTerraformSource, type TerraformImportResult } from '../iac/terraformImport'
 import type { FrameworkSelection, NewProjectInput } from '../types/project'
 import './NewProjectWizard.css'
 
@@ -8,6 +9,12 @@ interface NewProjectWizardProps {
   onCancel: () => void
   onCreate: (input: NewProjectInput) => Promise<void>
 }
+
+/** Sentinel `templateId` for the "Import from Terraform" card — distinct
+ *  from every real `PROJECT_TEMPLATES` id, since picking it doesn't select
+ *  a pre-built diagram the way the others do, it triggers a file picker
+ *  and generates one from whatever the user chose. */
+const TERRAFORM_IMPORT_ID = 'terraform-import'
 
 export function NewProjectWizard({ onCancel, onCreate }: NewProjectWizardProps) {
   const nameInputRef = useRef<HTMLInputElement>(null)
@@ -20,8 +27,35 @@ export function NewProjectWizard({ onCancel, onCreate }: NewProjectWizardProps) 
   })
   const [templateId, setTemplateId] = useState(PROJECT_TEMPLATES[0].id)
   const [submitting, setSubmitting] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [terraformImport, setTerraformImport] = useState<(TerraformImportResult & { fileName: string }) | null>(null)
 
   const canSubmit = name.trim().length > 0 && !submitting
+
+  async function handleImportTerraform() {
+    setImportError(null)
+    setImporting(true)
+    try {
+      const picked = await window.api.importTerraformFile()
+      if (picked.canceled || !picked.content) return
+      const result = importTerraformSource(picked.content)
+      if (result.summary.importedCount === 0) {
+        setImportError(
+          `No recognized resources found in ${picked.fileName} — nothing to import. See the Terraform import scope notes if a resource type you expected is missing.`
+        )
+        setTerraformImport(null)
+        return
+      }
+      setTerraformImport({ ...result, fileName: picked.fileName ?? 'import.tf' })
+      setTemplateId(TERRAFORM_IMPORT_ID)
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Failed to read or parse that Terraform file.')
+      setTerraformImport(null)
+    } finally {
+      setImporting(false)
+    }
+  }
 
   // Plain `autoFocus` is unreliable here — this wizard mounts fresh each time
   // the user clicks "New Project" (App.tsx swaps it in via a state change,
@@ -38,8 +72,11 @@ export function NewProjectWizard({ onCancel, onCreate }: NewProjectWizardProps) 
     if (!canSubmit) return
     setSubmitting(true)
     try {
-      const template = PROJECT_TEMPLATES.find((t) => t.id === templateId)
-      await onCreate({ name: name.trim(), description: description.trim(), frameworks, diagram: template?.build() })
+      const diagram =
+        templateId === TERRAFORM_IMPORT_ID
+          ? terraformImport?.diagram
+          : PROJECT_TEMPLATES.find((t) => t.id === templateId)?.build()
+      await onCreate({ name: name.trim(), description: description.trim(), frameworks, diagram })
     } finally {
       setSubmitting(false)
     }
@@ -89,14 +126,48 @@ export function NewProjectWizard({ onCancel, onCreate }: NewProjectWizardProps) 
                 type="button"
                 key={t.id}
                 className={`template-card${templateId === t.id ? ' template-card--on' : ''}`}
-                onClick={() => setTemplateId(t.id)}
+                onClick={() => {
+                  setTemplateId(t.id)
+                  setImportError(null)
+                }}
                 aria-pressed={templateId === t.id}
               >
                 <span className="template-card__name">{t.name}</span>
                 <p className="template-card__description">{t.description}</p>
               </button>
             ))}
+            <button
+              type="button"
+              className={`template-card${templateId === TERRAFORM_IMPORT_ID ? ' template-card--on' : ''}`}
+              onClick={handleImportTerraform}
+              aria-pressed={templateId === TERRAFORM_IMPORT_ID}
+              disabled={importing}
+            >
+              <span className="template-card__name">Import from Terraform</span>
+              <p className="template-card__description">
+                {importing
+                  ? 'Reading file…'
+                  : terraformImport && templateId === TERRAFORM_IMPORT_ID
+                    ? `${terraformImport.fileName} selected — click to pick a different file.`
+                    : 'Pick a .tf file — resources become a starter diagram (v1: single file, AWS resource types only).'}
+              </p>
+            </button>
           </div>
+          {importError && <p className="template-picker__error">{importError}</p>}
+          {terraformImport && templateId === TERRAFORM_IMPORT_ID && (
+            <p className="template-picker__summary">
+              {terraformImport.summary.importedCount} element{terraformImport.summary.importedCount === 1 ? '' : 's'} imported,{' '}
+              {terraformImport.summary.edgeCount} flow{terraformImport.summary.edgeCount === 1 ? '' : 's'} inferred
+              {terraformImport.summary.skippedCount > 0 && (
+                <>
+                  , {terraformImport.summary.skippedCount} resource{terraformImport.summary.skippedCount === 1 ? '' : 's'} skipped
+                  (unrecognized type{terraformImport.summary.skippedTypes.length === 1 ? '' : 's'}:{' '}
+                  {terraformImport.summary.skippedTypes.join(', ')})
+                </>
+              )}
+              . No External Entity nodes are generated automatically — add any users/external actors by hand.
+            </p>
+          )}
         </div>
 
         <div className="wizard__actions">

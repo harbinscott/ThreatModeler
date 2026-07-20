@@ -94,6 +94,16 @@ const EMPTY_PCI_SCOPE_MAP = new Map<string, PciScope>()
 const EMPTY_CROWN_JEWEL_SET = new Set<string>()
 const MAX_REVISIONS = 10
 
+/** Release 14 stage C — the fields that actually constitute "unsaved
+ *  changes" worth warning about, deliberately excluding `id`/`createdAt`/
+ *  `updatedAt`/`revisionHistory`/`revisionCount` — those change on every
+ *  save regardless of any real edit, so including them would make the
+ *  comparison always report dirty right after a save. */
+function comparableSnapshot(committed: Project, pasta: PastaData): string {
+  const { name, description, frameworks, diagram, threats, info, notes, customStencils, customRules, subDiagrams } = committed
+  return JSON.stringify({ name, description, frameworks, diagram, threats, pasta, info, notes, customStencils, customRules, subDiagrams })
+}
+
 function makeNode(
   elementType: ElementType,
   index: number,
@@ -177,6 +187,23 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
   const isRestoringRef = useRef(false)
   const historyInitializedRef = useRef(false)
   const clipboardRef = useRef<{ nodes: DiagramNode[]; edges: DiagramEdge[] } | null>(null)
+  // Release 14 stage C — unsaved-changes guard. Holds a serialized snapshot
+  // of whatever was last persisted (on load, and after every successful
+  // Save) so `hasUnsavedChanges()` can compare against it on demand rather
+  // than maintaining a continuously-updated "dirty" boolean touched by
+  // every mutator in this file.
+  const lastSavedSnapshotRef = useRef<string>('')
+  // Release 14 stage D — "threats may be stale" reminder. Holds a
+  // serialized {nodes, edges} snapshot of whatever diagram content the
+  // *currently active level's* threats were last regenerated against (or
+  // freshly loaded/navigated-to as-is, which counts as "not stale yet"
+  // since its stored threats presumably already reflect that content).
+  // Recomputing `threatsMayBeStale` below on every render — cheap at this
+  // app's scale, and avoids the staleness-of-the-cache problem a
+  // dependency-keyed `useMemo` would have here (regenerating updates this
+  // ref without nodes/edges themselves changing, so a memo keyed on
+  // `[nodes, edges]` wouldn't know to recompute).
+  const lastRegeneratedSnapshotRef = useRef<string>('')
 
   useEffect(() => {
     window.api.getProject(projectId).then((p) => {
@@ -184,13 +211,22 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
       setNodes(p.diagram.nodes)
       // Normalize edges saved before line-style/arrow/color logic existed —
       // without this, legacy edges render with no marker at all.
-      setEdges(normalizeEdges(p.diagram.edges))
+      const normalizedEdges = normalizeEdges(p.diagram.edges)
+      setEdges(normalizedEdges)
       setThreats(p.threats)
-      setPasta(normalizePasta(p.pasta))
+      const pastaAtLoad = normalizePasta(p.pasta)
+      setPasta(pastaAtLoad)
       setBreadcrumb([])
       setLoading(false)
+      lastSavedSnapshotRef.current = comparableSnapshot(
+        writeLevel(p, null, p.diagram.nodes, normalizedEdges, p.threats),
+        pastaAtLoad
+      )
+      lastRegeneratedSnapshotRef.current = JSON.stringify({ nodes: p.diagram.nodes, edges: normalizedEdges })
     })
   }, [projectId, setNodes, setEdges])
+
+  const threatsMayBeStale = JSON.stringify({ nodes, edges }) !== lastRegeneratedSnapshotRef.current
 
   // Debounced undo/redo snapshot: rather than instrumenting every single
   // mutation call site (add/delete/update/connect/reverse/etc.), just watch
@@ -362,6 +398,12 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     setEdges(normalized)
     setThreats(levelThreats)
     history.reset(diagram.nodes, normalized)
+    // Arriving at a level (top, nested, or the temporary hops the PDF
+    // export does to screenshot each sub-diagram) counts as "not stale
+    // yet" — its stored threats presumably already reflect this content;
+    // only edits made *after* this point without an intervening
+    // regenerate should light up the reminder.
+    lastRegeneratedSnapshotRef.current = JSON.stringify({ nodes: diagram.nodes, edges: normalized })
   }
 
   // Commits the level being left (top or nested) into `project`, then loads
@@ -433,8 +475,30 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     const revisionCount = (fullState.revisionCount ?? 0) + 1
     const updated = await window.api.saveProject({ ...fullState, revisionHistory, revisionCount })
     setProject(updated)
+    lastSavedSnapshotRef.current = comparableSnapshot(committed, pasta)
     setSaveState('saved')
     setTimeout(() => setSaveState('idle'), 1500)
+  }
+
+  /** Release 14 stage C — computed on demand (at the moment the user tries
+   *  to leave) rather than kept as a continuously-updated boolean, so this
+   *  doesn't need a setDirty(true) call added to every mutator in this
+   *  file — it just re-derives the same comparable shape handleSave/load
+   *  already produce and diffs it against the last-saved snapshot. */
+  function hasUnsavedChanges(): boolean {
+    if (!project) return false
+    const committed = writeLevel(project, currentSubDiagramId, nodes, edges, threats)
+    return comparableSnapshot(committed, pasta) !== lastSavedSnapshotRef.current
+  }
+
+  /** Same lightweight `window.confirm` pattern `restoreRevision()` already
+   *  uses for an analogous "you'll lose unsaved work" warning, rather than
+   *  a new three-button Save/Discard/Cancel modal — consistent with this
+   *  app's existing style. Cancelling just leaves the user on the canvas
+   *  to hit Save themselves. */
+  function handleBackClick() {
+    if (hasUnsavedChanges() && !window.confirm('You have unsaved changes. Leave without saving?')) return
+    onBack()
   }
 
   // Loads an old full-project snapshot back into the live editing state —
@@ -596,6 +660,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
   }
 
   function handleRegenerateThreats() {
+    lastRegeneratedSnapshotRef.current = JSON.stringify({ nodes, edges })
     const generated = [...generateThreats({ nodes, edges }), ...generateCustomThreats({ nodes, edges }, project?.customRules ?? [])]
     const dreadEnabled = project?.frameworks.dread ?? false
     setThreats((existing) => {
@@ -928,7 +993,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
       <div className="canvas-toolbar">
         <div className="canvas-toolbar__row canvas-toolbar__row--primary">
           <div className="canvas-toolbar__title">
-            <button type="button" className="btn" onClick={onBack}>
+            <button type="button" className="btn" onClick={handleBackClick}>
               <IconArrowLeft size={15} aria-hidden="true" />
               Projects
             </button>
@@ -1148,8 +1213,18 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
             )}
             {view === 'threats' && (
               <div className="canvas-toolbar__palette">
-                <button type="button" className="btn" onClick={handleRegenerateThreats}>
+                <button
+                  type="button"
+                  className={`btn${threatsMayBeStale ? ' btn--warning' : ''}`}
+                  onClick={handleRegenerateThreats}
+                  title={
+                    threatsMayBeStale
+                      ? 'The diagram has changed since threats were last regenerated for this level — click to refresh.'
+                      : 'Re-run the rule engine against the current diagram.'
+                  }
+                >
                   Regenerate Threats
+                  {threatsMayBeStale && <span className="canvas-toolbar__badge">!</span>}
                 </button>
                 <button
                   type="button"

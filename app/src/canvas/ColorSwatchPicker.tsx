@@ -18,8 +18,22 @@ export function ColorSwatchPicker({ value, onPick }: ColorSwatchPickerProps) {
     onPick(hex)
   }
 
+  // Release 14 stage C — root cause confirmed: React's `onChange` on
+  // `<input type="color">` maps to the native `input` event, which
+  // Chromium's own color-picker UI fires *continuously* while the user
+  // drags across the wheel/slider — not once on confirm. Recording to
+  // "recent" on every one of those firings meant a single pick gesture
+  // could add many near-identical (or, once the drag settles, literally
+  // identical) intermediate values, which read as "all 5 recent swatches
+  // show the same color." Live preview still needs every firing (so the
+  // swatch reflects the color as you drag), but recording to history only
+  // makes sense once, when the picker actually closes — the native
+  // `change`/blur point, not `input`.
   function pickCustom(hex: string) {
     onPick(hex)
+  }
+
+  function commitCustom(hex: string) {
     setRecent(addRecentColor(hex))
   }
 
@@ -37,7 +51,12 @@ export function ColorSwatchPicker({ value, onPick }: ColorSwatchPickerProps) {
           />
         ))}
         <label className="swatch swatch--custom" title="Custom color (opens color wheel)">
-          <input type="color" value={value ?? '#2563eb'} onChange={(e) => pickCustom(e.target.value)} />
+          <input
+            type="color"
+            value={value ?? '#2563eb'}
+            onChange={(e) => pickCustom(e.target.value)}
+            onBlur={(e) => commitCustom(e.target.value)}
+          />
         </label>
       </div>
       {recent.length > 0 && (

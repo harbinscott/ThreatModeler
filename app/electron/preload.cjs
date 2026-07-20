@@ -15,4 +15,5 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('reports:export-image', { dataUrl, format, suggestedName }),
   exportModelFile: (content, suggestedName, kind) =>
     ipcRenderer.invoke('reports:export-model', { content, suggestedName, kind }),
+  importTerraformFile: () => ipcRenderer.invoke('iac:import-terraform-file'),
 })

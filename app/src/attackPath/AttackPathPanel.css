@@ -9,8 +9,10 @@
 
 .attack-path--empty {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 1rem;
   padding: 2rem;
 }
 
@@ -30,6 +32,30 @@
   flex-direction: column;
   min-height: 0;
   overflow-y: auto;
+}
+
+.attack-path__scope {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.7rem 0.8rem 0;
+}
+
+.attack-path__scope-pill {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.attack-path__scope-pill--active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(37, 99, 235, 0.1);
 }
 
 .attack-path__summary {

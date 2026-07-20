@@ -51,8 +51,16 @@ export interface AttackPathResult {
  *  directly-assigned compliance scope. Deliberately not extended to
  *  *propagated* compliance scope on Process nodes — the roadmap scoped this
  *  as "sensitive Data Store," and a node that merely talks to a tagged store
- *  is a step on the path, not the destination itself. */
-export function sensitiveTargets(diagram: Diagram): SensitiveTarget[] {
+ *  is a step on the path, not the destination itself.
+ *
+ *  `includeAll` (Release 14 stage D) drops the crown-jewel/compliance
+ *  requirement entirely, surfacing every Process/Data Store node — the
+ *  "open Attack Paths to every asset" toggle. Still scoped to the same two
+ *  element types as the default view (not External Entities, which are
+ *  attacker-side and never a reachability *target*, and not Mitigation/
+ *  Trust Boundary nodes, which aren't "assets" in this app's sense) — this
+ *  broadens *which* assets are asked about, not *what counts as* an asset. */
+export function sensitiveTargets(diagram: Diagram, includeAll = false): SensitiveTarget[] {
   const complianceByNode = computeEffectiveComplianceTags(diagram)
   const results: SensitiveTarget[] = []
   for (const n of diagram.nodes) {
@@ -63,7 +71,9 @@ export function sensitiveTargets(diagram: Diagram): SensitiveTarget[] {
       const tags = complianceByNode.get(n.id)
       if (tags && tags.size > 0) reasons.push(`Compliance scope: ${[...tags].sort().join(', ')}`)
     }
-    if (reasons.length > 0) results.push({ nodeId: n.id, label: n.data.label, reasons })
+    if (reasons.length === 0 && !includeAll) continue
+    if (reasons.length === 0) reasons.push('Included via "All assets" view')
+    results.push({ nodeId: n.id, label: n.data.label, reasons })
   }
   return results
 }
@@ -141,8 +151,8 @@ function bfsShortestPath(
  *  (dozens of nodes, not thousands) — a full BFS per (entry point, target)
  *  pair is simpler than anything cleverer and plenty fast, same call
  *  `complianceTags.ts`'s flood-fill already makes. */
-export function computeAttackPaths(diagram: Diagram): AttackPathResult[] {
-  const targets = sensitiveTargets(diagram)
+export function computeAttackPaths(diagram: Diagram, includeAll = false): AttackPathResult[] {
+  const targets = sensitiveTargets(diagram, includeAll)
   const entryPoints = attackerEntryPoints(diagram)
   const nodesById = new Map(diagram.nodes.map((n) => [n.id, n]))
   const adjacency = buildAdjacency(diagram)
