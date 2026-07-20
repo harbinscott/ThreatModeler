@@ -364,6 +364,12 @@ a.threats-detail__citation:hover {
   padding: 0.1rem 0.5rem;
 }
 
+.threats-dread__field-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
 .threats-dread__field {
   display: flex;
   align-items: center;
@@ -377,6 +383,32 @@ a.threats-detail__citation:hover {
   gap: 0.3rem;
   font-size: 0.8rem;
   color: var(--text);
+}
+
+.threats-dread__rubric-tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1px solid var(--text-muted);
+  color: var(--text-muted);
+  font-size: 0.6rem;
+  line-height: 1;
+  cursor: help;
+}
+
+.threats-dread__rubric-tip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.threats-dread__anchor {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 0;
 }
 
 .dread-explain-icon {

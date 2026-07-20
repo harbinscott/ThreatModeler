@@ -92,33 +92,18 @@ obvious from the code alone.
    Release 14 before starting — valuable, but doesn't change what the tool
    does with a diagram that's already built, so it shouldn't gate the rest.
    See "Stretch (Release 12)" under "What's built" for the full writeup.
-   Next up: **Release 13 — Requirements Gap Coverage** (scoped, not
-   started) — see "Release roadmap" below for the full scope.
-6. **Release 13 — Requirements Gap Coverage — in progress, stages A-B done
-   and verified, stages C-H not started.** Eight stages total, ordered
-   small/independent first, biggest design work last — see "Release
-   roadmap" below for the full scope and stage order, and "Requirements
-   gap coverage (Release 13), stages A-B" under "What's built" for the
-   full writeup of what's done so far:
-   - **✅ Stage A — four more compliance framework tags** (HIPAA,
-     ISO 27001 Annex A, NIST CSF 2.0, FedRAMP). Turned out to need almost
-     no new code — the existing tag system (`complianceTags.ts`'s
-     propagation, `dreadEngine.ts`'s DREAD bump, `ruleEngine.ts`'s
-     description text, the Threats tab filter) was already fully generic
-     over `ComplianceTag`, so this was purely a type-union + labels/colors
-     addition.
-   - **✅ Stage B — MITRE ATT&CK technique citations** alongside the
-     existing CAPEC/CWE ones, one curated technique per STRIDE category
-     plus three signal-based extras (boundary-crossing, credential-related,
-     mitigation-targeting threats). Every id verified live against
-     attack.mitre.org before shipping, same practice established in
-     Release 7 — one technique (T1562) needed a secondary source since its
-     MITRE page didn't render cleanly through automated fetch, cross-
-     checked before including it.
-   - **Not started**: DREAD scoring rubric (stage C, next up), SARIF/OTM
-     export (D), control verification states (E, the single highest-value
-     item from the requirements doc), reverse/auditor compliance view (F),
-     project templates (G), risk-trend dashboard (H).
+6. **✅ Release 13 — Requirements Gap Coverage — done and verified, all
+   eight stages.** Compliance framework tags (A), MITRE ATT&CK citations
+   (B), a DREAD scoring rubric (C), SARIF/OTM export (D), weighted control
+   verification states (E), a reverse/auditor Compliance tab (F), project
+   templates (G), and a Risk Trend dashboard (H). See "Release roadmap"
+   below for the full stage-by-stage scope and "Requirements gap coverage
+   (Release 13)" under "What's built" for the full writeup of all eight,
+   including two things Stage H testing surfaced that turned out to be
+   existing correct behavior rather than bugs (Risk Trend only updating on
+   Regenerate Threats; a mitigation control raising total threat count
+   while still lowering the category score it actually protects) — both
+   explained there rather than just asserted.
 7. One more unrelated bug reported in an earlier session, logged but **not
    yet fixed** per explicit user request (backlog only):
    `ColorSwatchPicker.tsx`'s "Recent" custom colors all show the same color
@@ -131,26 +116,30 @@ obvious from the code alone.
    debugging before a fix, not a guess. See Backlog below.
 8. Releases 6 (mitigation elements), 7 (threat intelligence grounding), 8
    (diagram scalability), 9 (SDLC integration), 10 (AI risk surface & API
-   Gateway), 11 (reporting & risk register enhancements), and 12 (stretch:
-   crown jewels, reviewer comments, attack-path analysis, custom rules) are
-   all done and fully verified — see "What's built" below for the full
-   writeups.
+   Gateway), 11 (reporting & risk register enhancements), 12 (stretch:
+   crown jewels, reviewer comments, attack-path analysis, custom rules),
+   and 13 (requirements gap coverage: compliance tags, ATT&CK citations,
+   DREAD rubric, SARIF/OTM export, control verification states, auditor
+   compliance view, project templates, risk-trend dashboard) are all done
+   and fully verified — see "What's built" below for the full writeups.
 9. One more item came in from Release 3 testing and was folded into the
    roadmap rather than built immediately: an unsaved-changes guard (warn
    before navigating away from an edited-but-unsaved diagram) — Backlog
    item 1 below, small and a real data-safety gap. Not started.
-10. Four small backlog items remain, all low priority, none blocking:
+10. Five small backlog items remain, all low priority, none blocking:
    trust boundary shape editing *after* creation (currently creation-time
    only), further parallel-edge endpoint visual polish, Tidy Up layout
    *quality* (edge-length minimization, horizontal/left-to-right default
    orientation — explicitly scoped as polish, distinct from the correctness
-   bug fixed in item 1 above), and a "threats may be stale" reminder after
-   diagram changes (found live during Release 11 testing). See Backlog
-   below.
+   bug fixed in item 1 above), a "threats may be stale" reminder after
+   diagram changes (found live during Release 11 testing, resurfaced during
+   Release 13 stage H testing — user's call: plan a real fix into a future
+   release rather than patch it ad hoc), and opening Attack Paths up to
+   every asset rather than just crown-jewel/compliance-tagged ones
+   (explicitly scoped as post-1.0). See Backlog below.
 11. Everything is committed and pushed to
     `https://github.com/harbinscott/ThreatModeler` (`main` branch) as of
-    the end of this session, including all four stages of Release 12 and
-    stages A-B of Release 13.
+    the end of this session, including all eight stages of Release 13.
 
 ## What this is
 
@@ -1552,9 +1541,8 @@ threat-affecting change in this app already follows (Backlog item 6 already
 tracks the general "was this reflected?" trap this shares with everything
 else here).
 
-**Requirements gap coverage (Release 13), stages A-B** — in progress;
-stages C-H not started (see "Release roadmap" below for the full
-eight-stage scope and order).
+**Requirements gap coverage (Release 13)** — done and verified, all eight
+stages (A-H) (see "Release roadmap" below for the full scope and order).
 
 *Stage A — four more compliance framework tags*: `ComplianceTag` extended
 with `HIPAA`, `ISO27001`, `NISTCSF`, `FedRAMP` (`types/project.ts`), plus
@@ -1607,6 +1595,127 @@ unverified. No changes needed in `ThreatsPanel.tsx`'s citation rendering
 `threatToMarkdown()` (already includes every entry `citationsForThreat()`
 returns) — only the "References" section's hint tooltip text was updated
 to mention ATT&CK alongside CAPEC/CWE.
+
+*Stage C — DREAD scoring rubric*: new `DREAD_RUBRIC` in `dreadEngine.ts` —
+10 anchor descriptions per DREAD field (50 total), a small "?" `RubricTip`
+icon next to each field's label in `ThreatsPanel.tsx` showing the full 1-10
+scale as a native multi-line tooltip (Chromium renders `\n` as line breaks),
+plus a live one-line caption under each number input echoing the anchor
+text for whatever value is currently entered (e.g. "7 — Severe — large-
+scale sensitive data loss or extended outage"), updating as the user types.
+Explicitly a house rubric, not a cited external standard — the module
+comment says so, since "how bad is a 6 vs a 7" has no universal answer and
+shouldn't read as if it were sourced from somewhere authoritative.
+
+*Stage D — SARIF and OTM export*: new `modelExport.ts`. `threatsToSarif()`
+(Threats tab, next to Export CSV, same "whatever's currently filtered"
+posture) builds a SARIF 2.1.0 run — one result per threat with `ruleId`,
+a risk-derived `level` (error/warning/note), and a `logicalLocations` entry
+naming the target rather than a `physicalLocation`, since threats have no
+source file (SARIF's spec explicitly supports this for non-file-based
+analysis); a `false-positive` threat gets a `suppressions` entry so a
+SARIF-consuming CI gate can filter it out without guessing from a custom
+field. `projectToOtm()` (toolbar Export menu, "Threat Model (OTM)" — needs
+the full diagram, not a filtered threat list, so it lives there rather than
+in the Threats tab) builds an Open Threat Model 0.2.0 document: trust
+boundaries become `trustZones` (plus an "Unscoped" fallback for anything
+outside one), every other node becomes a `component`, edges become
+`dataflows`, and each target's threats are embedded inline with a
+likelihood/impact pair derived from the already-scored DREAD fields rather
+than a second, disconnected number. One new generic `reports:export-model`
+IPC handler in `main.js` (writes text to a file, `.sarif`/`.otm` extension
+picked by a `kind` param) rather than two near-identical handlers.
+
+*Stage E — control verification states*: new `verificationState` select
+field (Proposed/Implemented/Verified/Failed) on mitigation nodes
+(`mstmAttributes.ts`). `dreadEngine.ts`'s `mitigationContributions()` now
+scales its existing negative DREAD deltas by a `VERIFICATION_CREDIT`
+multiplier (Proposed 0, Implemented 0.6, Verified 1, Failed 0), rounded per
+contribution — undefined still reads as full credit (same "undefined isn't
+false" backward-compat rule `rulesUpToDate` already established), so this
+doesn't retroactively change any already-scored project's numbers.
+Zero-credit contributions are still emitted (amount 0, not omitted) so the
+"Why these scores?" hover explains *why* a mitigation on the diagram isn't
+moving the score, instead of just looking uninvolved. `ruleEngine.ts`
+grew matching sentences on the affected flow's Tampering/DoS threat
+descriptions ("only proposed, not yet implemented — no DREAD credit has
+been applied," "failed verification — treat this flow as unprotected,"
+etc.) so the reasoning shows up in the threat text too, not just the score
+breakdown.
+
+*Stage F — reverse/auditor compliance view*: new "Compliance" tab
+(`ComplianceView.tsx`) — the inverse of the existing per-element compliance
+tagging: pick a framework (colored pills, only frameworks actually in use
+in the diagram are shown) and see every in-scope node/edge as one flat,
+scannable table (zone, PCI sub-scope when the framework is PCI, compliance
+notes, open threat count, worst DREAD risk pill), with a summary line
+(elements in scope, how many are "clean," total open threats, a Critical/
+High/Medium/Low breakdown). Deliberately a table, not a list+detail split
+like Attack Paths — an auditor wants to scan every in-scope element's
+coverage at once, not drill into one at a time. Clicking a row jumps to the
+Diagram tab via a new `viewElementInDiagram()` in `Canvas.tsx` (checks
+whether the id belongs to a node or an edge and calls the right selector),
+since a compliance-tagged Data Flow means rows can be either, unlike Attack
+Paths' `onViewInDiagram` which only ever deals in nodes.
+
+*Stage G — project templates*: new `projectTemplates.ts` — each template is
+a factory function (`build(): Diagram`), not a static diagram, so every
+project created from it gets fresh node/edge ids the same way any other
+add-shape path does, and the same template can be reused across many
+project creations without id collisions. Four templates: Blank (today's
+default, byte-for-byte unchanged), Three-Tier Web App, Microservices + API
+Gateway, and Mobile App + Cloud Backend — the last one pre-tags its data
+store PII and its backend process `usesAI`, so a fresh project from that
+template already has something to look at in the Threats/Compliance tabs
+rather than starting completely bare. `NewProjectWizard.tsx` gained a
+template-card picker below the framework picker; `NewProjectInput` gained
+an optional `diagram` field built client-side and handed over ready-made,
+since `electron/main.js` is plain unbundled JS and can't import a
+TypeScript module — the renderer builds the diagram, the main process just
+persists whatever it's given (`input.diagram ?? { nodes: [], edges: [] }`).
+
+*Stage H — risk-trend dashboard*: new `riskTrend.ts` (`computeRiskTrend()`)
+turns `Project.revisionHistory` (capped to the last `MAX_REVISIONS` saves,
+see Canvas.tsx) into a chronological open-threats-by-DREAD-risk-level
+series, oldest save first, with the live in-progress editor state appended
+as a final "Current" point so the chart reflects unsaved changes too. New
+`RiskTrendDialog.tsx` — a hand-rolled SVG stacked bar chart (no charting
+library; every other custom visualization in this app — Attack Paths,
+Compliance view — is plain SVG/DOM too), opened via a new "Risk Trend"
+toolbar button next to Notes. Reads only each revision's *top-level*
+`snapshot.threats`, not sub-diagram threats — same no-rollup rule Attack
+Paths/Compliance view/PDF export already follow, so a trend that silently
+mixed diagram levels together wouldn't misrepresent itself as complete.
+
+Two things surfaced during Stage H testing that turned out to be existing,
+correct behavior rather than new bugs, worth recording since they're easy
+to mistake for regressions:
+- **Risk Trend only updates on "Regenerate Threats"** — inherited from the
+  same known gap logged in Release 11's backlog (item 6 below): diagram
+  edits don't live-recompute threats or DREAD scores, only clicking
+  Regenerate does, and even then an already-reviewed threat's score stays
+  frozen. User's call after discussing it: leave this as-is for now and
+  plan a real fix (the backlog's "stale threats" reminder idea) into a
+  future release deliberately, rather than patching it ad hoc at the tail
+  end of this one.
+- **Adding a mitigation control raised the total open-threat count/score**
+  in one live test (API Gateway + WAF added to a flow) — expected, not a
+  scoring bug: a mitigation node is itself a brand-new target with its own
+  6 STRIDE threats at the normal base score (see `mitigationDescription()`
+  in `ruleEngine.ts`), and its declared properties only reduce the 1-2
+  categories they actually protect on the *downstream flow*
+  (Tampering, and Denial-of-Service when rate-limiting is set) — they don't
+  remove the new attack surface the control itself introduces. Net threat
+  count/total score can rise even while the specific flow's protected
+  category score goes down; not investigated further as a possible bug,
+  since the mechanism fully explains the observation.
+
+Also mid-release: the Attack Paths tab was briefly renamed to "Critical
+Asset Paths" (to make its crown-jewel/compliance-only scoping explicit
+after a fresh template project's tab looked broken with nothing tagged),
+then reverted back to "Attack Paths" per user preference — net no change,
+but it surfaced a real product question logged as a deliberate backlog
+item rather than acted on now: see Backlog item 7 below.
 
 ## Release roadmap (agreed with user — work through in this order)
 
@@ -1805,51 +1914,49 @@ already built:
   - **Stage D — custom user-defined STRIDE rules** — biggest open design
     question of the four (a rule-authoring UI plus integration with
     `mergeThreats()`'s dedup/preserve-edits logic), left for last.
-- **Release 13 — Requirements Gap Coverage** *(scoped from a systematic
-  comparison against the user-supplied competitor requirements doc —
-  in progress, stages A-B done and verified this session, ordered
-  small/independent first)*. See "Requirements doc gap analysis" below
-  under "What's built" for the full comparison this was drawn from,
-  including everything already covered and everything consciously *not*
-  being pursued (with reasons):
+- **Release 13 — Requirements Gap Coverage** ✅ done and verified, all eight
+  stages (A-H) — *(scoped from a systematic comparison against the
+  user-supplied competitor requirements doc, ordered small/independent
+  first)*. See "Requirements doc gap analysis" below under "What's built"
+  for the full comparison this was drawn from, including everything
+  already covered and everything consciously *not* being pursued (with
+  reasons):
   - **✅ Stage A — more compliance framework tags**: HIPAA, ISO 27001
     Annex A, NIST CSF 2.0, FedRAMP — extends the existing `ComplianceTag`
     union (Release 5), same propagation/DREAD-bump architecture, no new
-    mechanism needed. See "Requirements gap coverage (Release 13),
-    stages A-B" under "What's built."
+    mechanism needed. See "Requirements gap coverage (Release 13)" under
+    "What's built."
   - **✅ Stage B — MITRE ATT&CK technique ID citations** alongside the
     existing CAPEC/CWE ones (Release 7) — same `threatIntel.ts`
     architecture, same "verify every id live before shipping" practice.
-    See "Requirements gap coverage (Release 13), stages A-B" under
-    "What's built."
-  - **Stage C — DREAD scoring rubric** *(not started, next up)* — defined
-    anchor descriptions per 1-10 value for each of the 5 fields, shown
-    alongside the existing hint tooltips, for the situations automation
-    can't derive a score and a human has to pick one.
-  - **Stage D — SARIF and OTM (Open Threat Model) export** *(not
-    started)* — CI-gate/interop-friendly formats, same shape as the
-    existing CSV/Markdown exporters (no credentials or network calls
-    needed, unlike the scanner/SIEM/CMDB integrations the doc also lists
-    — see below for why those are out).
-  - **Stage E — control verification states** *(not started)* —
-    proposed/implemented/verified/failed-or-regressed, with only
-    `verified` controls getting full DREAD mitigation weight and
-    `implemented`-but-unverified getting partial credit. The single
-    highest-value idea from the requirements doc; extends the existing
-    mitigation-attribute architecture (Release 6) rather than replacing
-    it.
-  - **Stage F — reverse/auditor compliance view** *(not started)* — start
-    from a framework requirement, see which components it applies to and
-    their status; the framework-centric companion to Release 11's
-    target-centric risk register.
-  - **Stage G — project templates** *(not started)* — common patterns
-    (three-tier web app, event-driven microservice, data pipeline) as
-    diagram starting points, distinct from Release 3's per-element "save
-    as custom element."
-  - **Stage H — risk-trend dashboard** *(not started)* — newly
-    *feasible*, not just theoretically nice, now that Release 9's
-    `revisionHistory` gives us timestamped project snapshots to chart
-    against.
+  - **✅ Stage C — DREAD scoring rubric** — 10 anchor descriptions per
+    1-10 value for each of the 5 DREAD fields, a "?" tooltip per field plus
+    a live caption under each input showing the current value's anchor
+    text, for the situations automation can't derive a score and a human
+    has to pick one.
+  - **✅ Stage D — SARIF and OTM (Open Threat Model) export** —
+    CI-gate/interop-friendly formats, same shape as the existing
+    CSV/Markdown exporters (no credentials or network calls needed, unlike
+    the scanner/SIEM/CMDB integrations the doc also lists — see below for
+    why those are out).
+  - **✅ Stage E — control verification states** —
+    proposed/implemented/verified/failed, with weighted DREAD credit
+    (0/60%/100%/0%) rather than the originally-scoped binary
+    verified-or-not gate — a finer-grained version of the same idea, still
+    extending the existing mitigation-attribute architecture (Release 6)
+    rather than replacing it.
+  - **✅ Stage F — reverse/auditor compliance view** — a new Compliance tab:
+    start from a framework, see which components/flows are in scope and
+    their open-threat/risk status; the framework-centric companion to
+    Release 11's target-centric risk register.
+  - **✅ Stage G — project templates** — three starter architectures (Three-
+    Tier Web App, Microservices + API Gateway, Mobile App + Cloud Backend)
+    plus Blank, picked in the New Project wizard, distinct from Release 3's
+    per-element "save as custom element."
+  - **✅ Stage H — risk-trend dashboard** — a Risk Trend dialog charting
+    open threats by DREAD risk level across `revisionHistory` (Release 9),
+    newly *feasible*, not just theoretically nice, now that timestamped
+    project snapshots exist to chart against.
   - **Explicitly not pursuing**, named rather than silently dropped: live
     cloud discovery (AWS/Azure/GCP read-only API), SIEM/scanner
     closed-loop control verification, CMDB/IdP integration, a networked
@@ -1948,7 +2055,30 @@ already built:
    regenerate threats that shows that there are more threats pending
    refresh." Small, contained UI addition if wanted — e.g. a dirty-diagram
    flag (nodes/edges changed since the last regenerate) driving a badge or
-   highlight on the "Regenerate Threats" button.
+   highlight on the "Regenerate Threats" button. **Resurfaced during
+   Release 13 stage H testing**: the new Risk Trend dashboard only updates
+   when threats are regenerated too, for the same underlying reason — user
+   explicitly wants this planned into an upcoming release alongside any
+   other related items, rather than patched in isolation at the tail end
+   of a release ("we can keep the refresh change to an upcoming release
+   when we can plan it out along with any additional related items").
+7. **Open Attack Paths to every asset, not just crown-jewel/compliance-
+   tagged ones** — raised during Release 13 stage H testing, when a fresh
+   template project's Attack Paths tab looked broken (empty) because
+   nothing in it was tagged crown-jewel or compliance-scoped yet. Current
+   design deliberately scopes the tab to "sensitive targets" only (see
+   `sensitiveTargets()` in `attackPath.ts`) — showing reachability for
+   *every* node would mostly restate the diagram's own connectivity graph
+   and be noisy rather than actionable on a real diagram. A brief rename to
+   "Critical Asset Paths" was tried to make that scoping explicit in the
+   tab label itself, then reverted back to "Attack Paths" per user
+   preference (the empty-state message already explains the scoping).
+   User's explicit call: keep the current scoping for now, and treat
+   "open it up to every asset" as a genuine post-1.0 stretch idea rather
+   than something to build before the tool's first full release — would
+   need its own design pass (e.g. a toggle between "sensitive only" and
+   "everything," since an unscoped view for a large diagram could get
+   overwhelming fast).
 
 Decided against / explicitly skipped:
 - **Threat diagram screenshot** in the Threats detail panel — would have

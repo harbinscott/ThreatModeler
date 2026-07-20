@@ -20,12 +20,14 @@ import { DEFAULT_EDGE_DATA, edgeVisualProps } from '../canvas/edgeStyle'
 import { ThreatsPanel } from '../threats/ThreatsPanel'
 import { generateThreats, generateCustomThreats, mergeThreats } from '../threats/ruleEngine'
 import { threatsToCsv } from '../threats/threatIntel'
+import { threatsToSarif, projectToOtm } from '../threats/modelExport'
 import { suggestDreadScore, explainDreadScore, dreadAverage, dreadRiskLevel, DREAD_RISK_COLOR, type DreadRiskLevel } from '../threats/dreadEngine'
 import { ShapeButton } from '../canvas/ShapeButton'
 import { TrustBoundaryButton, type BoundaryShapePreset } from '../canvas/TrustBoundaryButton'
 import { ExportMenu } from '../canvas/ExportMenu'
 import { ElementsTable } from '../canvas/ElementsTable'
 import { AttackPathPanel } from '../attackPath/AttackPathPanel'
+import { ComplianceView } from '../compliance/ComplianceView'
 import { useResizablePanel } from '../canvas/useResizablePanel'
 import { useDiagramHistory } from '../canvas/useDiagramHistory'
 import { ThreatOverlayContext } from '../canvas/ThreatOverlayContext'
@@ -42,6 +44,7 @@ import { ThreatModelInfoDialog } from '../components/ThreatModelInfoDialog'
 import { MessagesDialog } from '../components/MessagesDialog'
 import { NotesDialog } from '../components/NotesDialog'
 import { HistoryDialog } from '../components/HistoryDialog'
+import { RiskTrendDialog } from '../components/RiskTrendDialog'
 import { CustomRulesDialog } from '../components/CustomRulesDialog'
 import {
   IconArrowLeft,
@@ -55,6 +58,7 @@ import {
   IconChevronRight,
   IconLayoutGrid,
   IconHistory,
+  IconChartLine,
 } from '@tabler/icons-react'
 import { SHAPE_LABELS, SHAPE_ICONS } from '../canvas/shapeMeta'
 import '../canvas/canvas.css'
@@ -81,7 +85,7 @@ interface CanvasProps {
   onBack: () => void
 }
 
-type ViewTab = 'diagram' | 'threats' | 'table' | 'pasta' | 'attack-paths'
+type ViewTab = 'diagram' | 'threats' | 'table' | 'pasta' | 'attack-paths' | 'compliance'
 
 const edgeTypes = { floating: FloatingEdge }
 const EMPTY_THREAT_MAP = new Map<string, Threat[]>()
@@ -146,6 +150,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
   const [showMessagesDialog, setShowMessagesDialog] = useState(false)
   const [showNotesDialog, setShowNotesDialog] = useState(false)
   const [showHistoryDialog, setShowHistoryDialog] = useState(false)
+  const [showRiskTrendDialog, setShowRiskTrendDialog] = useState(false)
   const [showCustomRulesDialog, setShowCustomRulesDialog] = useState(false)
   // Sub-diagram navigation (Release 8): breadcrumb[] is the path from the
   // top-level diagram down to whichever level is currently loaded into
@@ -570,6 +575,26 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     window.api.exportThreatsCsv(csv, `${safeName}-threats.csv`)
   }
 
+  /** Release 13 stage D — same "whatever's currently filtered" list as CSV,
+   *  packaged as a SARIF 2.1.0 run for CI/security-tooling ingestion. */
+  function handleExportThreatsSarif(list: Threat[]) {
+    if (!project) return
+    const sarif = threatsToSarif(list)
+    const safeName = project.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+    window.api.exportModelFile(sarif, `${safeName}-threats.sarif`, 'sarif')
+  }
+
+  /** Release 13 stage D — the current diagram level (whichever one is
+   *  active) + its threats as an Open Threat Model document. Toolbar-level
+   *  like the PDF/PNG/SVG exports, not the Threats tab, since it needs the
+   *  full diagram rather than a filtered threat list. */
+  function handleExportOtm() {
+    if (!project) return
+    const otm = projectToOtm(project, { nodes, edges }, threats)
+    const safeName = project.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+    window.api.exportModelFile(otm, `${safeName}.otm`, 'otm')
+  }
+
   function handleRegenerateThreats() {
     const generated = [...generateThreats({ nodes, edges }), ...generateCustomThreats({ nodes, edges }, project?.customRules ?? [])]
     const dreadEnabled = project?.frameworks.dread ?? false
@@ -720,6 +745,16 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
 
   function viewNodeInDiagram(id: string) {
     selectNode(id)
+    setView('diagram')
+  }
+
+  /** Compliance tab (Release 13 stage F) rows can be either a node or an
+   *  edge (a compliance-tagged Data Flow), unlike viewNodeInDiagram above
+   *  which Attack Paths only ever calls with node ids — this picks the
+   *  right selector based on which collection actually has the id. */
+  function viewElementInDiagram(id: string) {
+    if (nodes.some((n) => n.id === id)) selectNode(id)
+    else selectEdge(id)
     setView('diagram')
   }
 
@@ -959,6 +994,13 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
             >
               Attack Paths
             </button>
+            <button
+              type="button"
+              className={`tab${view === 'compliance' ? ' tab--active' : ''}`}
+              onClick={() => setView('compliance')}
+            >
+              Compliance
+            </button>
             {project.frameworks.pasta && (
               <button
                 type="button"
@@ -1012,8 +1054,17 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
               <IconNotes size={15} aria-hidden="true" />
               Notes
             </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => setShowRiskTrendDialog(true)}
+              title="Open threat count by DREAD risk level across your save history"
+            >
+              <IconChartLine size={15} aria-hidden="true" />
+              Risk Trend
+            </button>
             <span className="canvas-toolbar__divider" />
-            <ExportMenu onExport={handleExport} onExportImage={handleExportImage} exporting={exporting} />
+            <ExportMenu onExport={handleExport} onExportImage={handleExportImage} onExportOtm={handleExportOtm} exporting={exporting} />
             <button type="button" className="btn btn--primary" onClick={handleSave} disabled={saveState === 'saving'}>
               <IconDeviceFloppy size={15} aria-hidden="true" />
               {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved ✓' : 'Save'}
@@ -1213,12 +1264,24 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
             onDeleteReviewerComment={deleteReviewerComment}
             onDelete={deleteThreat}
             onExportCsv={handleExportThreatsCsv}
+            onExportSarif={handleExportThreatsSarif}
           />
         </div>
       )}
       {view === 'attack-paths' && (
         <div className="canvas-body">
           <AttackPathPanel diagram={{ nodes, edges }} threats={threats} onViewInDiagram={viewNodeInDiagram} />
+        </div>
+      )}
+      {view === 'compliance' && (
+        <div className="canvas-body">
+          <ComplianceView
+            diagram={{ nodes, edges }}
+            threats={threats}
+            complianceTagsByTarget={complianceTagsByTarget}
+            pciScopeByTarget={pciScopeByTarget}
+            onViewInDiagram={viewElementInDiagram}
+          />
         </div>
       )}
       {view === 'table' && (
@@ -1279,6 +1342,13 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
           revisionHistory={project.revisionHistory ?? []}
           onRestore={restoreRevision}
           onClose={() => setShowHistoryDialog(false)}
+        />
+      )}
+      {showRiskTrendDialog && (
+        <RiskTrendDialog
+          revisionHistory={project.revisionHistory ?? []}
+          currentThreats={threats}
+          onClose={() => setShowRiskTrendDialog(false)}
         />
       )}
       {showCustomRulesDialog && (

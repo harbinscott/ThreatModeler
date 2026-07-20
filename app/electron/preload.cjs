@@ -13,4 +13,6 @@ contextBridge.exposeInMainWorld('api', {
   exportThreatsCsv: (csv, suggestedName) => ipcRenderer.invoke('reports:export-csv', { csv, suggestedName }),
   exportDiagramImage: (dataUrl, format, suggestedName) =>
     ipcRenderer.invoke('reports:export-image', { dataUrl, format, suggestedName }),
+  exportModelFile: (content, suggestedName, kind) =>
+    ipcRenderer.invoke('reports:export-model', { content, suggestedName, kind }),
 })

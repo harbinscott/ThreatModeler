@@ -20,6 +20,11 @@ declare global {
         format: 'png' | 'svg',
         suggestedName: string
       ) => Promise<{ canceled: boolean; filePath?: string }>
+      exportModelFile: (
+        content: string,
+        suggestedName: string,
+        kind: 'sarif' | 'otm'
+      ) => Promise<{ canceled: boolean; filePath?: string }>
     }
   }
 }

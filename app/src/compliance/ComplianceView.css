@@ -1,0 +1,135 @@
+.compliance-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  padding: 0.8rem 1rem;
+  overflow: hidden;
+}
+
+.compliance-view--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.compliance-view--empty p {
+  max-width: 420px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.compliance-view__frameworks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.compliance-view__framework-pill {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.compliance-view__framework-pill--active {
+  color: #1a1a1a;
+}
+
+.compliance-view__title {
+  margin: 0.7rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.compliance-view__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  margin: 0.4rem 0 0.6rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.compliance-view__summary strong {
+  color: var(--text);
+}
+
+.compliance-view__risk-chip {
+  font-weight: 700;
+}
+
+.compliance-view__table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.compliance-view__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.compliance-view__table th {
+  position: sticky;
+  top: 0;
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.compliance-view__table td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.compliance-view__row {
+  cursor: pointer;
+}
+
+.compliance-view__row:hover {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.compliance-view__cell-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.compliance-view__cell-notes {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+.compliance-view__risk-pill {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}

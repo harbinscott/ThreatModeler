@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { FrameworkPicker } from '../components/FrameworkPicker'
+import { PROJECT_TEMPLATES } from '../templates/projectTemplates'
 import type { FrameworkSelection, NewProjectInput } from '../types/project'
 import './NewProjectWizard.css'
 
@@ -17,6 +18,7 @@ export function NewProjectWizard({ onCancel, onCreate }: NewProjectWizardProps) 
     dread: true,
     pasta: false,
   })
+  const [templateId, setTemplateId] = useState(PROJECT_TEMPLATES[0].id)
   const [submitting, setSubmitting] = useState(false)
 
   const canSubmit = name.trim().length > 0 && !submitting
@@ -36,7 +38,8 @@ export function NewProjectWizard({ onCancel, onCreate }: NewProjectWizardProps) 
     if (!canSubmit) return
     setSubmitting(true)
     try {
-      await onCreate({ name: name.trim(), description: description.trim(), frameworks })
+      const template = PROJECT_TEMPLATES.find((t) => t.id === templateId)
+      await onCreate({ name: name.trim(), description: description.trim(), frameworks, diagram: template?.build() })
     } finally {
       setSubmitting(false)
     }
@@ -76,6 +79,24 @@ export function NewProjectWizard({ onCancel, onCreate }: NewProjectWizardProps) 
         <div className="field">
           <span className="field__label">Threat modeling approach</span>
           <FrameworkPicker value={frameworks} onChange={setFrameworks} />
+        </div>
+
+        <div className="field">
+          <span className="field__label">Starting point</span>
+          <div className="template-picker">
+            {PROJECT_TEMPLATES.map((t) => (
+              <button
+                type="button"
+                key={t.id}
+                className={`template-card${templateId === t.id ? ' template-card--on' : ''}`}
+                onClick={() => setTemplateId(t.id)}
+                aria-pressed={templateId === t.id}
+              >
+                <span className="template-card__name">{t.name}</span>
+                <p className="template-card__description">{t.description}</p>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="wizard__actions">

@@ -379,4 +379,9 @@ export interface NewProjectInput {
   name: string
   description: string
   frameworks: FrameworkSelection
+  /** Release 13 stage G — a starting diagram from `projectTemplates.ts`,
+   *  built client-side and handed over ready-made since the main process
+   *  has no access to the (TypeScript, renderer-only) templates module.
+   *  Undefined means the empty diagram — same as before this field existed. */
+  diagram?: Diagram
 }

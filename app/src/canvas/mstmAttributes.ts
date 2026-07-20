@@ -242,6 +242,18 @@ export function dataFlowSecurityFields(): AttributeFieldDef[] {
  *  set `mitigationType` via their `defaults`, same pattern as `processType`. */
 export const MITIGATION_TYPE_OPTIONS = ['Generic Mitigation Control', 'Firewall', 'WAF', 'IDS/IPS', 'API Gateway']
 
+/** Release 13 stage E — the control's lifecycle status, read by
+ *  `dreadEngine.ts`'s `mitigationContributions()` to weight how much DREAD
+ *  credit its declared properties earn: a proposed-but-unbuilt or a
+ *  verification-failed control gets none, an implemented-but-unverified one
+ *  gets partial credit, and a verified one gets full credit — see that
+ *  function for the exact weights. Undefined (every mitigation node created
+ *  before this field existed) is treated the same as 'Verified', matching
+ *  `rulesUpToDate`'s existing "undefined isn't false" backward-compat rule,
+ *  so this doesn't retroactively change any already-scored project's DREAD
+ *  numbers. */
+export const MITIGATION_VERIFICATION_STATE_OPTIONS = ['Proposed', 'Implemented', 'Verified', 'Failed']
+
 /** A mitigation's declared properties are read by `ruleEngine.ts`/`dreadEngine.ts`
  *  for any data flow whose *source* is this node — see `mitigationContributions()`
  *  in `dreadEngine.ts` for why only the downstream edge benefits, not the
@@ -257,6 +269,7 @@ export const MITIGATION_TYPE_OPTIONS = ['Generic Mitigation Control', 'Firewall'
  *  ever touched Tampering. */
 export function mitigationSecurityFields(): AttributeFieldDef[] {
   return [
+    { key: 'verificationState', label: 'Verification state', type: 'select', options: MITIGATION_VERIFICATION_STATE_OPTIONS },
     { key: 'blocksUnauthorizedTraffic', label: 'Blocks unauthorized traffic', type: 'boolean' },
     { key: 'inspectsPayload', label: 'Inspects payload / content', type: 'boolean' },
     { key: 'logsTraffic', label: 'Logs traffic', type: 'boolean' },

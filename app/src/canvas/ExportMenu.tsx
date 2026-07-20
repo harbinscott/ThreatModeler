@@ -5,10 +5,11 @@ import type { ReportVariant } from '../reports/reportTemplate'
 interface ExportMenuProps {
   onExport: (variant: ReportVariant) => void
   onExportImage: (format: 'png' | 'svg') => void
+  onExportOtm: () => void
   exporting: boolean
 }
 
-export function ExportMenu({ onExport, onExportImage, exporting }: ExportMenuProps) {
+export function ExportMenu({ onExport, onExportImage, onExportOtm, exporting }: ExportMenuProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -77,6 +78,18 @@ export function ExportMenu({ onExport, onExportImage, exporting }: ExportMenuPro
               }}
             >
               Diagram (SVG)
+            </button>
+          </li>
+          <li>
+            <button
+              type="button"
+              onClick={() => {
+                onExportOtm()
+                setOpen(false)
+              }}
+              title="Export the current diagram + threats as an Open Threat Model (OTM) document"
+            >
+              Threat Model (OTM)
             </button>
           </li>
         </ul>

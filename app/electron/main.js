@@ -36,7 +36,7 @@ ipcMain.handle('projects:create', async (_event, input) => {
     name: input.name,
     description: input.description ?? '',
     frameworks: input.frameworks,
-    diagram: { nodes: [], edges: [] },
+    diagram: input.diagram ?? { nodes: [], edges: [] },
     threats: [],
     createdAt: now,
     updatedAt: now,
@@ -165,6 +165,23 @@ ipcMain.handle('reports:export-image', async (event, { dataUrl, format, suggeste
     const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
     await fs.writeFile(filePath, Buffer.from(base64, 'base64'))
   }
+  return { canceled: false, filePath }
+})
+
+const MODEL_EXPORT_FORMATS = {
+  sarif: { name: 'SARIF', extensions: ['sarif'] },
+  otm: { name: 'Open Threat Model', extensions: ['otm'] },
+}
+
+ipcMain.handle('reports:export-model', async (event, { content, suggestedName, kind }) => {
+  const parentWindow = BrowserWindow.fromWebContents(event.sender)
+  const { canceled, filePath } = await dialog.showSaveDialog(parentWindow, {
+    title: kind === 'otm' ? 'Export Threat Model (OTM)' : 'Export Threats (SARIF)',
+    defaultPath: suggestedName,
+    filters: [MODEL_EXPORT_FORMATS[kind]],
+  })
+  if (canceled || !filePath) return { canceled: true }
+  await fs.writeFile(filePath, content, 'utf-8')
   return { canceled: false, filePath }
 })
 

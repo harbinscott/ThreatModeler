@@ -282,6 +282,16 @@ export function generateThreats(diagram: Diagram): Threat[] {
       if (cat === 'T' && sourceMitigation && (sourceMitigationAttrs.blocksUnauthorizedTraffic === true || sourceMitigationAttrs.inspectsPayload === true)) {
         desc += ` This flow originates from ${sourceMitigation.data.label}, a declared mitigation control — verify its rules/signatures are current and correctly scoped rather than treating this as fully resolved.`
       }
+      if ((cat === 'T' || cat === 'D') && sourceMitigation) {
+        const verificationState = sourceMitigationAttrs.verificationState as string | undefined
+        if (verificationState === 'Proposed') {
+          desc += ` ${sourceMitigation.data.label} is only proposed, not yet implemented — no DREAD credit has been applied for its protection.`
+        } else if (verificationState === 'Failed') {
+          desc += ` ${sourceMitigation.data.label} failed verification — treat this flow as unprotected until it is fixed and re-verified.`
+        } else if (verificationState === 'Implemented') {
+          desc += ` ${sourceMitigation.data.label} is implemented but not yet independently verified — only partial DREAD credit has been applied.`
+        }
+      }
       if (cat === 'I' || cat === 'T') desc += complianceNote(edgeTags, edgePciScope, edge.data?.complianceNotes)
       threats.push(
         makeThreat(

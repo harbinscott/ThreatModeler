@@ -148,6 +148,28 @@ function complianceContributions(threat: Threat, diagram: Diagram): DreadContrib
   ]
 }
 
+/** Release 13 stage E — how much of a mitigation's DREAD credit it earns
+ *  based on `verificationState`: nothing for a control that's merely
+ *  proposed (not yet built) or one that failed verification (demonstrably
+ *  doesn't work), partial credit for one that's implemented but only
+ *  self-attested, full credit once independently verified. Undefined (every
+ *  mitigation node created before this field existed) reads as 'Verified' —
+ *  same "undefined isn't false" backward-compat rule `rulesUpToDate` already
+ *  uses, so this doesn't retroactively change any already-scored project's
+ *  DREAD numbers. */
+const VERIFICATION_CREDIT: Record<string, number> = {
+  Proposed: 0,
+  Implemented: 0.6,
+  Verified: 1,
+  Failed: 0,
+}
+
+function verificationCredit(attrs: Record<string, AttributeValue>): number {
+  const state = attrs.verificationState as string | undefined
+  if (state === undefined) return 1
+  return VERIFICATION_CREDIT[state] ?? 1
+}
+
 /** The first *negative* contributions in this codebase: a flow whose source
  *  is a declared mitigation control (Release 6) gets a reduced score on
  *  Tampering — the one category its declared properties (blocks unauthorized
@@ -162,7 +184,12 @@ function complianceContributions(threat: Threat, diagram: Diagram): DreadContrib
  *  review and close it out; this only lowers the starting suggestion, gated
  *  on the control's ruleset being confirmed current (`rulesUpToDate !==
  *  false`) so a stale control doesn't get credit for protection it may no
- *  longer reliably provide. */
+ *  longer reliably provide, and (Release 13 stage E) weighted by
+ *  `verificationState` via `verificationCredit()` above so an unbuilt or
+ *  failed control earns none of it either. Zero-credit contributions are
+ *  still emitted (amount 0, not omitted) so the "Why these scores?" hover
+ *  explains *why* a mitigation on the diagram isn't affecting the score,
+ *  rather than looking like it was never considered. */
 function mitigationContributions(threat: Threat, diagram: Diagram): DreadContribution[] {
   if (threat.targetType !== 'edge') return []
   if (threat.category !== 'T' && threat.category !== 'D') return []
@@ -171,19 +198,23 @@ function mitigationContributions(threat: Threat, diagram: Diagram): DreadContrib
   if (!source || source.data.elementType !== 'mitigation') return []
   const attrs = source.data.attributes ?? {}
   const rulesCurrent = attrs.rulesUpToDate !== false
+  const credit = verificationCredit(attrs)
+  const state = (attrs.verificationState as string | undefined) ?? 'Verified'
+  const suffix = credit < 1 ? ` (${state.toLowerCase()} — ${credit === 0 ? 'no credit yet' : 'partial credit'})` : ''
+  const scaled = (amount: number) => Math.round(amount * credit)
   const contributions: DreadContribution[] = []
   if (threat.category === 'T') {
     if (attrs.blocksUnauthorizedTraffic === true && rulesCurrent) {
-      contributions.push({ key: 'exploitability', label: `${source.data.label} blocks unauthorized traffic`, amount: -2 })
+      contributions.push({ key: 'exploitability', label: `${source.data.label} blocks unauthorized traffic${suffix}`, amount: scaled(-2) })
     }
     if (attrs.inspectsPayload === true && rulesCurrent) {
-      contributions.push({ key: 'exploitability', label: `${source.data.label} inspects payload content`, amount: -1 })
-      contributions.push({ key: 'damage', label: `${source.data.label} inspects payload content`, amount: -1 })
+      contributions.push({ key: 'exploitability', label: `${source.data.label} inspects payload content${suffix}`, amount: scaled(-1) })
+      contributions.push({ key: 'damage', label: `${source.data.label} inspects payload content${suffix}`, amount: scaled(-1) })
     }
   }
   if (threat.category === 'D' && attrs.rateLimitingEnabled === true && rulesCurrent) {
-    contributions.push({ key: 'exploitability', label: `${source.data.label} enforces rate limiting`, amount: -2 })
-    contributions.push({ key: 'affectedUsers', label: `${source.data.label} enforces rate limiting`, amount: -1 })
+    contributions.push({ key: 'exploitability', label: `${source.data.label} enforces rate limiting${suffix}`, amount: scaled(-2) })
+    contributions.push({ key: 'affectedUsers', label: `${source.data.label} enforces rate limiting${suffix}`, amount: scaled(-1) })
   }
   return contributions
 }
@@ -330,4 +361,73 @@ export const DREAD_RISK_COLOR: Record<DreadRiskLevel, string> = {
   Medium: '#f59e0b',
   High: '#fb7185',
   Critical: '#ef4444',
+}
+
+/** Scoring anchors for each DREAD field's 1-10 scale — reference text for a
+ *  human picking a score by hand, not consumed by any scoring logic (the
+ *  automated suggestions in this file never read from this table). Exists
+ *  because "how bad is a 6 vs a 7?" has no universal answer; these anchors
+ *  are this app's own house rubric, not a cited external standard, so they
+ *  should read as guidance rather than as an authoritative citation. */
+export const DREAD_RUBRIC: Record<keyof DreadScore, Record<number, string>> = {
+  damage: {
+    1: 'Negligible — no meaningful impact, cosmetic only',
+    2: 'Trivial — minor inconvenience, no data or downtime',
+    3: 'Minor — limited data exposure or a degraded feature, easily reversible',
+    4: 'Limited — some non-sensitive data or a single non-critical function affected',
+    5: 'Moderate — meaningful data loss or disruption to one workflow',
+    6: 'Significant — sensitive data exposed or a core function disabled',
+    7: 'Severe — large-scale sensitive data loss or extended outage',
+    8: 'Major — regulated data breach or loss of system integrity',
+    9: 'Critical — full compromise of the asset, cascading downstream impact',
+    10: 'Catastrophic — complete system/business failure, irreversible harm',
+  },
+  reproducibility: {
+    1: 'Practically never reproducible — requires an exact, unrepeatable race condition',
+    2: 'Reproducible only under rare, hard-to-align conditions',
+    3: 'Reproducible with significant effort and timing precision',
+    4: 'Reproducible with some trial and error',
+    5: 'Reproducible with a documented, repeatable procedure',
+    6: 'Reproducible on demand with moderate setup',
+    7: 'Reproducible on demand with minimal setup',
+    8: 'Reproducible every time using publicly known steps',
+    9: 'Reproducible instantly, no special conditions needed',
+    10: 'Always reproducible, trivially and immediately, on every attempt',
+  },
+  exploitability: {
+    1: 'Requires nation-state-level custom tooling and expertise',
+    2: 'Requires advanced, specialized exploit-development skill',
+    3: 'Requires significant skill and custom tooling',
+    4: 'Requires solid technical skill and some custom scripting',
+    5: 'Requires moderate skill, adapting an existing technique',
+    6: 'Requires basic technical skill, following a known technique',
+    7: 'Exploitable with a publicly available tool or script',
+    8: 'Exploitable using widely known steps and free tools',
+    9: 'Exploitable by a novice following a public tutorial',
+    10: 'Exploitable with no skill at all — e.g. default credentials, a browser only',
+  },
+  affectedUsers: {
+    1: 'A single, specific non-production test account or system',
+    2: 'A handful of low-value internal test users',
+    3: 'A small subset of internal users or systems',
+    4: 'A limited group of external users (single tenant/customer)',
+    5: 'A meaningful subset of users across the platform',
+    6: 'A large group of users, or several tenants',
+    7: 'Most users of the affected service',
+    8: 'All users of the affected service',
+    9: 'All users of the affected service, plus downstream integrated systems',
+    10: 'Every user of the platform and all connected/downstream systems',
+  },
+  discoverability: {
+    1: 'Effectively undiscoverable — requires source access and deep internal knowledge',
+    2: 'Very hard to find — requires privileged access or reverse engineering',
+    3: 'Hard to find — requires targeted probing an attacker would not normally try',
+    4: 'Findable with focused manual testing or code review',
+    5: 'Findable with standard security testing tools',
+    6: 'Findable with a routine vulnerability scan',
+    7: 'Visible to anyone who inspects the application closely',
+    8: 'Publicly documented, or easily observed in normal use',
+    9: 'Actively advertised — e.g. in error messages or API docs — or trivially found',
+    10: 'Already public knowledge, or actively exploited in the wild',
+  },
 }

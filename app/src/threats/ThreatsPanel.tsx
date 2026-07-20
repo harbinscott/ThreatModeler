@@ -4,7 +4,7 @@ import type { ComplianceTag, CustomStencil, DreadContribution, DreadScore, PciSc
 import { findStencil } from '../canvas/stencils'
 import { COMPLIANCE_TAG_COLOR, COMPLIANCE_TAG_LABELS } from '../canvas/complianceTags'
 import { useResizablePanel } from '../canvas/useResizablePanel'
-import { dreadAverage, dreadRiskLevel, dreadTotal, hasMitigationCredit, inherentDreadScore, DREAD_RISK_COLOR, type DreadRiskLevel } from './dreadEngine'
+import { dreadAverage, dreadRiskLevel, dreadTotal, hasMitigationCredit, inherentDreadScore, DREAD_RISK_COLOR, DREAD_RUBRIC, type DreadRiskLevel } from './dreadEngine'
 import { citationsForThreat, controlsForMitigationType, threatToMarkdown } from './threatIntel'
 import './ThreatsPanel.css'
 
@@ -48,6 +48,10 @@ interface ThreatsPanelProps {
    *  threats" is just "filter, then click export." File save itself goes
    *  through Canvas.tsx/the main process, same as every other export. */
   onExportCsv?: (threats: Threat[]) => void
+  /** Release 13 stage D — same "whatever's currently filtered" posture as
+   *  onExportCsv, but as a SARIF 2.1.0 run for CI/security-tooling
+   *  ingestion instead of a spreadsheet. */
+  onExportSarif?: (threats: Threat[]) => void
 }
 
 const EMPTY_COMPLIANCE_TAGS = new Map<string, Set<ComplianceTag>>()
@@ -65,6 +69,23 @@ const DREAD_FIELDS: { key: keyof DreadScore; label: string; hint: string }[] = [
   { key: 'affectedUsers', label: 'Affected users', hint: 'How many users/systems are impacted?' },
   { key: 'discoverability', label: 'Discoverability', hint: 'How easy is it to find?' },
 ]
+
+/** Full 1-10 rubric for one DREAD field, joined into a single native tooltip
+ *  (Chromium renders \n as line breaks) — a quick-reference scale to pick
+ *  from, distinct from the one-line "what does this field mean" hint on the
+ *  field label itself. */
+function rubricTooltip(key: keyof DreadScore): string {
+  const rubric = DREAD_RUBRIC[key]
+  return Array.from({ length: 10 }, (_, i) => i + 1).map((n) => `${n} — ${rubric[n]}`).join('\n')
+}
+
+function RubricTip({ fieldKey }: { fieldKey: keyof DreadScore }) {
+  return (
+    <span className="threats-dread__rubric-tip" title={rubricTooltip(fieldKey)}>
+      ?
+    </span>
+  )
+}
 
 const STATUS_OPTIONS: ThreatStatus[] = ['open', 'mitigated', 'accepted', 'false-positive']
 const CATEGORY_OPTIONS: StrideCategory[] = ['S', 'T', 'R', 'I', 'D', 'E']
@@ -277,6 +298,7 @@ export function ThreatsPanel({
   onDeleteReviewerComment,
   onDelete,
   onExportCsv,
+  onExportSarif,
 }: ThreatsPanelProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -438,6 +460,16 @@ export function ThreatsPanel({
           {onExportCsv && (
             <button type="button" className="btn threats-filters__export" onClick={() => onExportCsv(filtered)} title="Export the currently filtered threats as CSV">
               Export CSV
+            </button>
+          )}
+          {onExportSarif && (
+            <button
+              type="button"
+              className="btn threats-filters__export"
+              onClick={() => onExportSarif(filtered)}
+              title="Export the currently filtered threats as a SARIF 2.1.0 run, for ingestion by CI/security tooling"
+            >
+              Export SARIF
             </button>
           )}
         </div>
@@ -662,22 +694,32 @@ export function ThreatsPanel({
                 {selected.dreadNeedsReview && <span className="threats-dread__review-badge">Needs review</span>}
               </div>
               <DreadScoreExplain breakdown={dreadBreakdown} fields={DREAD_FIELDS} />
-              {DREAD_FIELDS.map((f) => (
-                <label className="threats-dread__field" key={f.key} title={f.hint}>
-                  <span className="threats-dread__field-label">{f.label}</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={10}
-                    value={selected.dread?.[f.key] ?? ''}
-                    placeholder="—"
-                    onChange={(e) => {
-                      const value = e.target.value === '' ? undefined : Number(e.target.value)
-                      onChangeDread(selected.id, { ...selected.dread, [f.key]: value })
-                    }}
-                  />
-                </label>
-              ))}
+              {DREAD_FIELDS.map((f) => {
+                const currentValue = selected.dread?.[f.key]
+                const anchor = currentValue ? DREAD_RUBRIC[f.key][currentValue] : undefined
+                return (
+                  <div className="threats-dread__field-wrap" key={f.key}>
+                    <label className="threats-dread__field" title={f.hint}>
+                      <span className="threats-dread__field-label">
+                        {f.label}
+                        <RubricTip fieldKey={f.key} />
+                      </span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={currentValue ?? ''}
+                        placeholder="—"
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? undefined : Number(e.target.value)
+                          onChangeDread(selected.id, { ...selected.dread, [f.key]: value })
+                        }}
+                      />
+                    </label>
+                    {anchor && <p className="threats-dread__anchor">{currentValue} — {anchor}</p>}
+                  </div>
+                )
+              })}
               {(() => {
                 const total = dreadTotal(selected.dread)
                 const avg = dreadAverage(selected.dread)
