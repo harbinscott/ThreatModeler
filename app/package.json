@@ -2,6 +2,8 @@
   "name": "app",
   "private": true,
   "version": "0.1.0",
+  "description": "Threat Modeler — a desktop threat-modeling tool unifying STRIDE, DREAD, and PASTA.",
+  "author": "Harbin Scott",
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
