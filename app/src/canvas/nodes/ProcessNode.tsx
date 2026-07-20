@@ -5,6 +5,7 @@ import { resolveNodeStyle, withRiskRing } from '../nodeColor'
 import { ThreatBadge } from '../ThreatBadge'
 import { ComplianceBadge } from '../ComplianceBadge'
 import { SubDiagramBadge } from '../SubDiagramBadge'
+import { CrownJewelBadge } from '../CrownJewelBadge'
 import { useThreatOverlay } from '../ThreatOverlayContext'
 import type { DiagramNode } from '../../types/project'
 
@@ -20,6 +21,7 @@ export function ProcessNode({ id, data, selected }: NodeProps<DiagramNode>) {
       <ThreatBadge targetId={id} />
       <ComplianceBadge targetId={id} />
       <SubDiagramBadge targetId={id} />
+      <CrownJewelBadge targetId={id} />
     </div>
   )
 }

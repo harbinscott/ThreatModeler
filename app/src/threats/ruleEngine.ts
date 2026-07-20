@@ -1,4 +1,4 @@
-import type { ComplianceTag, Diagram, PciScope, StrideCategory, Threat } from '../types/project'
+import type { AttributeValue, ComplianceTag, CustomRule, CustomRuleCondition, CustomRuleScope, Diagram, ElementType, PciScope, StrideCategory, Threat } from '../types/project'
 import { containingBoundaries as containingBoundaryNodes } from '../canvas/boundaryGeometry'
 import { computeEffectiveComplianceTags, computeEffectivePciScope } from '../canvas/complianceTags'
 
@@ -297,6 +297,79 @@ export function generateThreats(diagram: Diagram): Threat[] {
     })
   }
 
+  return threats
+}
+
+const SCOPE_ELEMENT_TYPE: Record<Exclude<CustomRuleScope, 'edge'>, ElementType> = {
+  process: 'process',
+  'external-entity': 'external-entity',
+  'data-store': 'data-store',
+  mitigation: 'mitigation',
+}
+
+function customConditionMatches(condition: CustomRuleCondition, attrs: Record<string, AttributeValue>): boolean {
+  switch (condition.operator) {
+    case 'none':
+      return true
+    case 'true':
+      return condition.attributeKey ? attrs[condition.attributeKey] === true : false
+    case 'false':
+      return condition.attributeKey ? attrs[condition.attributeKey] === false : false
+    case 'equals':
+      return condition.attributeKey ? String(attrs[condition.attributeKey] ?? '') === (condition.value ?? '') : false
+  }
+}
+
+function fillTemplate(template: string, label: string): string {
+  return template.replace(/\{label\}/g, label)
+}
+
+function makeCustomThreat(rule: CustomRule, targetType: 'node' | 'edge', targetId: string, label: string, componentType?: string): Threat {
+  return makeThreat(
+    `custom-${rule.id}`,
+    targetType,
+    targetId,
+    label,
+    rule.category,
+    fillTemplate(rule.title, label) || `${CATEGORY_NAMES[rule.category]} of ${label}`,
+    fillTemplate(rule.description, label),
+    componentType
+  )
+}
+
+/** User-authored rules (Release 12 stage D), the same condition -> STRIDE
+ *  category + description shape every built-in rule above already follows,
+ *  applied on top of them rather than replacing anything. Called alongside
+ *  `generateThreats` (see Canvas.tsx's `handleRegenerateThreats`) rather
+ *  than folded into it, so the built-in rule set stays simple to read and
+ *  this stays simple to reason about in isolation. Ruleids are prefixed
+ *  `custom-${rule.id}` so they can never collide with a built-in rule's id,
+ *  and `mergeThreats` below needs no changes to dedupe/preserve-edits them
+ *  correctly — it already keys purely on `${targetId}:${ruleId}` regardless
+ *  of where the id came from. */
+export function generateCustomThreats(diagram: Diagram, rules: CustomRule[]): Threat[] {
+  const threats: Threat[] = []
+  for (const rule of rules) {
+    if (!rule.enabled) continue
+    if (rule.scope === 'edge') {
+      for (const edge of diagram.edges) {
+        const attrs = edge.data?.attributes ?? {}
+        if (!customConditionMatches(rule.condition, attrs)) continue
+        const source = diagram.nodes.find((n) => n.id === edge.source)
+        const target = diagram.nodes.find((n) => n.id === edge.target)
+        const label = edge.data?.label || (source && target ? `${source.data.label} to ${target.data.label}` : 'Data flow')
+        threats.push(makeCustomThreat(rule, 'edge', edge.id, label))
+      }
+    } else {
+      const elementType = SCOPE_ELEMENT_TYPE[rule.scope]
+      for (const node of diagram.nodes) {
+        if (node.data.elementType !== elementType) continue
+        const attrs = node.data.attributes ?? {}
+        if (!customConditionMatches(rule.condition, attrs)) continue
+        threats.push(makeCustomThreat(rule, 'node', node.id, node.data.label, node.data.componentType))
+      }
+    }
+  }
   return threats
 }
 

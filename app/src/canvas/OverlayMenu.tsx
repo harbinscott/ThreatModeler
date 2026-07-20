@@ -5,6 +5,7 @@ export interface OverlayLayers {
   threatBadges: boolean
   dreadRiskColoring: boolean
   complianceTags: boolean
+  crownJewels: boolean
 }
 
 interface OverlayMenuProps {
@@ -62,6 +63,12 @@ export function OverlayMenu({ layers, onToggle, dreadAvailable }: OverlayMenuPro
             <label className="overlay-menu__item">
               <input type="checkbox" checked={layers.complianceTags} onChange={() => onToggle('complianceTags')} />
               Compliance tags
+            </label>
+          </li>
+          <li>
+            <label className="overlay-menu__item">
+              <input type="checkbox" checked={layers.crownJewels} onChange={() => onToggle('crownJewels')} />
+              Crown jewel assets
             </label>
           </li>
         </ul>

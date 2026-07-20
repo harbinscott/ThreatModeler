@@ -210,6 +210,35 @@ function aiContributions(threat: Threat, diagram: Diagram): DreadContribution[] 
   ]
 }
 
+/** Crown-jewel assets (Release 12) get a business-impact bump on *every*
+ *  STRIDE category, not a restricted subset — deliberately different from
+ *  the compliance bump above. Compliance scope ties to specific properties
+ *  (confidentiality/integrity/audit-trail), so it only fits some categories;
+ *  "this is a crown-jewel asset" is a blanket statement about outsized
+ *  business impact regardless of *how* it's compromised, which is its own
+ *  clean, statable reason to apply everywhere. Direct-only, matching
+ *  `crownJewel`'s no-propagation design: a node-target threat checks that
+ *  node, an edge-target threat checks both endpoints (same "a tagged flow
+ *  touches both its endpoints directly" rule complianceContributions uses
+ *  for edges, minus the same-zone flood-fill). */
+function crownJewelContributions(threat: Threat, diagram: Diagram): DreadContribution[] {
+  const isCrownJewel =
+    threat.targetType === 'node'
+      ? diagram.nodes.find((n) => n.id === threat.targetId)?.data.crownJewel === true
+      : (() => {
+          const edge = diagram.edges.find((e) => e.id === threat.targetId)
+          if (!edge) return false
+          const endpoints = diagram.nodes.filter((n) => n.id === edge.source || n.id === edge.target)
+          return endpoints.some((n) => n.data.crownJewel === true)
+        })()
+  if (!isCrownJewel) return []
+  const label = 'Crown jewel asset — outsized business impact if compromised'
+  return [
+    { key: 'damage', label, amount: 2 },
+    { key: 'affectedUsers', label, amount: 1 },
+  ]
+}
+
 /** Full breakdown of why a threat's suggested DREAD score is what it is —
  *  base score plus every contributing adjustment, each labeled. Powers the
  *  per-field "why this number" hover in ThreatsPanel; `suggestDreadScore`
@@ -228,6 +257,7 @@ export function explainDreadScore(threat: Threat, diagram: Diagram): DreadContri
     ...complianceContributions(threat, diagram),
     ...mitigationContributions(threat, diagram),
     ...aiContributions(threat, diagram),
+    ...crownJewelContributions(threat, diagram),
   ]
 }
 

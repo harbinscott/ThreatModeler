@@ -18,13 +18,14 @@ import { FloatingEdge } from '../canvas/FloatingEdge'
 import { Inspector } from '../canvas/Inspector'
 import { DEFAULT_EDGE_DATA, edgeVisualProps } from '../canvas/edgeStyle'
 import { ThreatsPanel } from '../threats/ThreatsPanel'
-import { generateThreats, mergeThreats } from '../threats/ruleEngine'
+import { generateThreats, generateCustomThreats, mergeThreats } from '../threats/ruleEngine'
 import { threatsToCsv } from '../threats/threatIntel'
 import { suggestDreadScore, explainDreadScore, dreadAverage, dreadRiskLevel, DREAD_RISK_COLOR, type DreadRiskLevel } from '../threats/dreadEngine'
 import { ShapeButton } from '../canvas/ShapeButton'
 import { TrustBoundaryButton, type BoundaryShapePreset } from '../canvas/TrustBoundaryButton'
 import { ExportMenu } from '../canvas/ExportMenu'
 import { ElementsTable } from '../canvas/ElementsTable'
+import { AttackPathPanel } from '../attackPath/AttackPathPanel'
 import { useResizablePanel } from '../canvas/useResizablePanel'
 import { useDiagramHistory } from '../canvas/useDiagramHistory'
 import { ThreatOverlayContext } from '../canvas/ThreatOverlayContext'
@@ -41,6 +42,7 @@ import { ThreatModelInfoDialog } from '../components/ThreatModelInfoDialog'
 import { MessagesDialog } from '../components/MessagesDialog'
 import { NotesDialog } from '../components/NotesDialog'
 import { HistoryDialog } from '../components/HistoryDialog'
+import { CustomRulesDialog } from '../components/CustomRulesDialog'
 import {
   IconArrowLeft,
   IconArrowBackUp,
@@ -58,6 +60,7 @@ import { SHAPE_LABELS, SHAPE_ICONS } from '../canvas/shapeMeta'
 import '../canvas/canvas.css'
 import type {
   ComplianceTag,
+  CustomRule,
   CustomStencil,
   DiagramEdge,
   DiagramNode,
@@ -67,6 +70,7 @@ import type {
   PciScope,
   Project,
   ProjectRevision,
+  ReviewerComment,
   Threat,
   ThreatStatus,
 } from '../types/project'
@@ -77,12 +81,13 @@ interface CanvasProps {
   onBack: () => void
 }
 
-type ViewTab = 'diagram' | 'threats' | 'table' | 'pasta'
+type ViewTab = 'diagram' | 'threats' | 'table' | 'pasta' | 'attack-paths'
 
 const edgeTypes = { floating: FloatingEdge }
 const EMPTY_THREAT_MAP = new Map<string, Threat[]>()
 const EMPTY_COMPLIANCE_MAP = new Map<string, Set<ComplianceTag>>()
 const EMPTY_PCI_SCOPE_MAP = new Map<string, PciScope>()
+const EMPTY_CROWN_JEWEL_SET = new Set<string>()
 const MAX_REVISIONS = 10
 
 function makeNode(
@@ -134,12 +139,14 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     threatBadges: true,
     dreadRiskColoring: false,
     complianceTags: false,
+    crownJewels: true,
   })
   const [ribbonOpen, setRibbonOpen] = useState(true)
   const [showInfoDialog, setShowInfoDialog] = useState(false)
   const [showMessagesDialog, setShowMessagesDialog] = useState(false)
   const [showNotesDialog, setShowNotesDialog] = useState(false)
   const [showHistoryDialog, setShowHistoryDialog] = useState(false)
+  const [showCustomRulesDialog, setShowCustomRulesDialog] = useState(false)
   // Sub-diagram navigation (Release 8): breadcrumb[] is the path from the
   // top-level diagram down to whichever level is currently loaded into
   // nodes/edges/threats above — empty means the top level. Only the last
@@ -413,6 +420,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
         info: fullState.info,
         notes: fullState.notes,
         customStencils: fullState.customStencils,
+        customRules: fullState.customRules,
         subDiagrams: fullState.subDiagrams,
       },
     }
@@ -563,7 +571,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
   }
 
   function handleRegenerateThreats() {
-    const generated = generateThreats({ nodes, edges })
+    const generated = [...generateThreats({ nodes, edges }), ...generateCustomThreats({ nodes, edges }, project?.customRules ?? [])]
     const dreadEnabled = project?.frameworks.dread ?? false
     setThreats((existing) => {
       const merged = mergeThreats(existing, generated)
@@ -601,6 +609,17 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
 
   function changeThreatAcceptance(id: string, patch: Partial<Pick<Threat, 'acceptedBy' | 'reviewByDate'>>) {
     setThreats((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)))
+  }
+
+  function addReviewerComment(id: string, text: string, author?: string) {
+    const comment: ReviewerComment = { id: crypto.randomUUID(), author: author || undefined, text, createdAt: new Date().toISOString() }
+    setThreats((ts) => ts.map((t) => (t.id === id ? { ...t, reviewerComments: [...(t.reviewerComments ?? []), comment] } : t)))
+  }
+
+  function deleteReviewerComment(id: string, commentId: string) {
+    setThreats((ts) =>
+      ts.map((t) => (t.id === id ? { ...t, reviewerComments: (t.reviewerComments ?? []).filter((c) => c.id !== commentId) } : t))
+    )
   }
 
   function changeThreatDread(id: string, dread: DreadScore) {
@@ -644,6 +663,14 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
   // views (the Threats tab) get to know about compliance scope.
   const complianceTagsByTarget = useMemo(() => computeEffectiveComplianceTags({ nodes, edges }), [nodes, edges])
   const pciScopeByTarget = useMemo(() => computeEffectivePciScope({ nodes, edges }), [nodes, edges])
+
+  // Direct-only (no flood-fill, unlike compliance tags) — see crownJewel's
+  // doc comment in types/project.ts for why proximity shouldn't spread it.
+  const crownJewelByTarget = useMemo(() => {
+    const set = new Set<string>()
+    for (const n of nodes) if (n.data.crownJewel) set.add(n.id)
+    return set
+  }, [nodes])
 
   // Target id -> mitigation stencil type, for the Threats tab's "Compensating
   // controls" block (Release 7) — a mitigation node itself, plus any edge it
@@ -689,6 +716,11 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
   function viewThreatOnCanvas(id: string) {
     setFocusThreatId(id)
     setView('threats')
+  }
+
+  function viewNodeInDiagram(id: string) {
+    selectNode(id)
+    setView('diagram')
   }
 
   function toggleOverlayLayer(key: keyof OverlayLayers) {
@@ -852,6 +884,10 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     updateProjectFields({ customStencils: [...(project?.customStencils ?? []), stencil] })
   }
 
+  function saveCustomRules(rules: CustomRule[]) {
+    updateProjectFields({ customRules: rules })
+  }
+
   return (
     <div className="canvas-page">
       <div className="canvas-toolbar">
@@ -915,6 +951,13 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
               onClick={() => setView('threats')}
             >
               Threats{openThreatCount > 0 ? ` (${openThreatCount})` : ''}
+            </button>
+            <button
+              type="button"
+              className={`tab${view === 'attack-paths' ? ' tab--active' : ''}`}
+              onClick={() => setView('attack-paths')}
+            >
+              Attack Paths
             </button>
             {project.frameworks.pasta && (
               <button
@@ -1057,6 +1100,14 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
                 <button type="button" className="btn" onClick={handleRegenerateThreats}>
                   Regenerate Threats
                 </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setShowCustomRulesDialog(true)}
+                  title="Author project-specific STRIDE rules — matched elements/flows generate threats alongside the built-in rule set on the next Regenerate Threats."
+                >
+                  Custom Rules{(project.customRules?.length ?? 0) > 0 ? ` (${project.customRules!.length})` : ''}
+                </button>
               </div>
             )}
           </div>
@@ -1073,6 +1124,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
                   riskColorByTarget,
                   complianceTagsByTarget: overlayLayers.complianceTags ? complianceTagsByTarget : EMPTY_COMPLIANCE_MAP,
                   pciScopeByTarget: overlayLayers.complianceTags ? pciScopeByTarget : EMPTY_PCI_SCOPE_MAP,
+                  crownJewelByTarget: overlayLayers.crownJewels ? crownJewelByTarget : EMPTY_CROWN_JEWEL_SET,
                   subDiagramOpenThreatCountByTarget,
                   onViewThreat: viewThreatOnCanvas,
                   onOpenSubDiagram: openSubDiagramFromBadge,
@@ -1157,9 +1209,16 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
             onChangeNotes={changeThreatNotes}
             onChangeDread={changeThreatDread}
             onChangeAcceptance={changeThreatAcceptance}
+            onAddReviewerComment={addReviewerComment}
+            onDeleteReviewerComment={deleteReviewerComment}
             onDelete={deleteThreat}
             onExportCsv={handleExportThreatsCsv}
           />
+        </div>
+      )}
+      {view === 'attack-paths' && (
+        <div className="canvas-body">
+          <AttackPathPanel diagram={{ nodes, edges }} threats={threats} onViewInDiagram={viewNodeInDiagram} />
         </div>
       )}
       {view === 'table' && (
@@ -1220,6 +1279,13 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
           revisionHistory={project.revisionHistory ?? []}
           onRestore={restoreRevision}
           onClose={() => setShowHistoryDialog(false)}
+        />
+      )}
+      {showCustomRulesDialog && (
+        <CustomRulesDialog
+          rules={project.customRules ?? []}
+          onChange={saveCustomRules}
+          onClose={() => setShowCustomRulesDialog(false)}
         />
       )}
     </div>

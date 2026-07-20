@@ -13,6 +13,12 @@ interface ThreatOverlayValue {
    *  complianceTagsByTarget. Only meaningful for targets whose tags include
    *  'PCI'. */
   pciScopeByTarget: Map<string, PciScope>
+  /** Node ids flagged `data.crownJewel === true` (Release 12), only
+   *  populated when the "Crown jewel assets" overlay layer is on. Direct-only
+   *  — deliberately not flood-filled like complianceTagsByTarget, since the
+   *  designation is about a specific asset's value, not something proximity
+   *  should spread. */
+  crownJewelByTarget: Set<string>
   /** Process-node id -> open threat count *inside its sub-diagram* (Release
    *  8) — only populated for Process nodes that own one. Deliberately kept
    *  separate from threatsByTarget, which stays scoped to the current
@@ -33,6 +39,7 @@ const EMPTY: ThreatOverlayValue = {
   riskColorByTarget: new Map(),
   complianceTagsByTarget: new Map(),
   pciScopeByTarget: new Map(),
+  crownJewelByTarget: new Set(),
   subDiagramOpenThreatCountByTarget: new Map(),
   onViewThreat: () => {},
   onOpenSubDiagram: () => {},
@@ -46,6 +53,7 @@ export function useThreatOverlay(targetId: string) {
     riskColorByTarget,
     complianceTagsByTarget,
     pciScopeByTarget,
+    crownJewelByTarget,
     subDiagramOpenThreatCountByTarget,
     onViewThreat,
     onOpenSubDiagram,
@@ -55,6 +63,7 @@ export function useThreatOverlay(targetId: string) {
     riskColor: riskColorByTarget.get(targetId),
     complianceTags: complianceTagsByTarget.get(targetId),
     pciScope: pciScopeByTarget.get(targetId),
+    isCrownJewel: crownJewelByTarget.has(targetId),
     hasSubDiagram: subDiagramOpenThreatCountByTarget.has(targetId),
     subDiagramOpenThreatCount: subDiagramOpenThreatCountByTarget.get(targetId) ?? 0,
     onViewThreat,

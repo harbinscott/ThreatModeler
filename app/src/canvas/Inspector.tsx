@@ -47,6 +47,19 @@ const BOUNDARY_TYPES: BoundaryType[] = [
   'Cloud Account/Tenant Boundary',
 ]
 
+/** Small "?" affordance for a brief explanation next to a field's label —
+ *  more discoverable than relying on a tooltip over the whole row (which
+ *  gives no visual hint that hovering does anything). Native `title` for the
+ *  actual tooltip, same as every other hover-hint in this panel — no need
+ *  for a custom popover for one line of text. */
+function HelpTip({ text }: { text: string }) {
+  return (
+    <span className="inspector__help" title={text}>
+      ?
+    </span>
+  )
+}
+
 function slugify(label: string) {
   return label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'field'
 }
@@ -250,7 +263,7 @@ function SecurityPropertiesSection({
   onAddCustomField: (def: CustomFieldDef) => void
   onRemoveCustomField: (key: string) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   const applicable = fields.filter((f) => !f.when || f.when(attrs))
   const visible = applicable.filter((f) => !hiddenKeys.includes(f.key))
   const hidden = applicable.filter((f) => hiddenKeys.includes(f.key))
@@ -554,6 +567,20 @@ function NodeInspector({
       </label>
 
       <NodeColorField colors={node.data.colors} onChange={(colors) => onUpdate(node.id, { colors })} />
+
+      {(node.data.elementType === 'process' || node.data.elementType === 'data-store') && (
+        <label className="inspector__field inspector__field--checkbox">
+          <span>
+            Crown jewel asset
+            <HelpTip text="Business-critical asset — compromise here has outsized impact. Feeds elevated DREAD scoring (+2 Damage, +1 Affected Users) on every threat touching this element, across every STRIDE category — see 'Why these scores?' for the breakdown. Also shows a crown badge on the canvas (toggle in Overlay menu)." />
+          </span>
+          <input
+            type="checkbox"
+            checked={node.data.crownJewel === true}
+            onChange={(e) => onUpdate(node.id, { crownJewel: e.target.checked })}
+          />
+        </label>
+      )}
 
       {node.data.elementType === 'process' && (
         <button

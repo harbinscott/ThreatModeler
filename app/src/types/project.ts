@@ -124,6 +124,15 @@ export interface DiagramNodeData extends Record<string, unknown> {
    *  Stores/External Entities/Trust Boundaries/Mitigations are terminal in
    *  DFD methodology. */
   subDiagramId?: string
+  /** Process and Data Store nodes only (Release 12) — manually flags an
+   *  asset as business-critical ("if this is compromised, it's a very bad
+   *  day"), for risk prioritization. Deliberately not propagated/flood-filled
+   *  like `complianceTags` — a crown-jewel designation is about *this specific
+   *  asset's* value, not something proximity should spread, so an upstream
+   *  node that merely talks to a crown jewel doesn't inherit the label.
+   *  Directly-touching flows still count (see `dreadEngine.ts`'s
+   *  `crownJewelContributions`), same as compliance tags' direct-edge rule. */
+  crownJewel?: boolean
 }
 
 export type LineStyle = 'solid' | 'dashed' | 'dotted'
@@ -148,6 +157,50 @@ export type DiagramEdge = Edge<DiagramEdgeData>
 export interface Diagram {
   nodes: DiagramNode[]
   edges: DiagramEdge[]
+}
+
+/** Custom user-defined STRIDE rules (Release 12 stage D) — the same
+ *  condition -> STRIDE category + description shape every built-in rule in
+ *  `ruleEngine.ts` already follows, just user-authored and project-scoped
+ *  instead of hardcoded. 'edge' covers Data Flows; the other four scopes
+ *  match `ElementType` minus 'trust-boundary' (boundaries are containers,
+ *  not threat targets in this app). */
+export type CustomRuleScope = 'process' | 'external-entity' | 'data-store' | 'mitigation' | 'edge'
+
+/** 'none' always fires (no condition — useful for org-specific policy
+ *  threats that should apply to every element of a scope regardless of its
+ *  attributes). 'true'/'false' check a boolean attribute; 'equals' does a
+ *  string comparison — covers every `AttributeValue` shape (`mstmAttributes.ts`
+ *  fields are boolean or text/select) without needing a richer expression
+ *  language. `attributeKey` is freeform text rather than a closed enum since
+ *  it must also reach project-specific custom fields (`DiagramNodeData.customFields`),
+ *  which aren't known statically. */
+export type CustomRuleConditionOperator = 'none' | 'true' | 'false' | 'equals'
+
+export interface CustomRuleCondition {
+  operator: CustomRuleConditionOperator
+  attributeKey?: string
+  value?: string
+}
+
+export interface CustomRule {
+  id: string
+  /** Short label identifying the rule itself in the rule list — distinct
+   *  from the generated threat's title, which is a template. */
+  name: string
+  scope: CustomRuleScope
+  category: StrideCategory
+  condition: CustomRuleCondition
+  /** Threat title/description templates — `{label}` is replaced with the
+   *  matched element's (or flow's) label at generation time. */
+  title: string
+  description: string
+  /** Lets a rule be turned off without losing its definition or discarding
+   *  any threats it already generated (those stay, same as deleting a
+   *  built-in rule's *code* wouldn't retroactively delete past threats —
+   *  this app has no such mechanism for built-ins, so disabling is the
+   *  custom-rule equivalent of "stop generating new ones from here on"). */
+  enabled: boolean
 }
 
 export type StrideCategory = 'S' | 'T' | 'R' | 'I' | 'D' | 'E'
@@ -175,6 +228,23 @@ export interface DreadContribution {
   key: keyof DreadScore
   label: string
   amount: number
+}
+
+/** One lightweight, timestamped reviewer comment (Release 12) — distinct
+ *  from `Threat.notes` (the single freeform "what mitigates this / why
+ *  accepted" resolution field): a comment thread for async back-and-forth
+ *  during review ("shouldn't Exploitability be higher given no WAF?" / "good
+ *  catch, bumped it") without needing full multi-user editing. `author` is
+ *  freeform text, same posture as `acceptedBy`/`ThreatModelInfo`'s
+ *  owner/reviewer fields elsewhere in this app — no user-account system to
+ *  attach a real identity to. Never edited in place once added, only
+ *  deletable — a comment thread that silently rewrites itself isn't a real
+ *  record of a review conversation. */
+export interface ReviewerComment {
+  id: string
+  author?: string
+  text: string
+  createdAt: string
 }
 
 export interface Threat {
@@ -205,6 +275,8 @@ export interface Threat {
   acceptedBy?: string
   acceptedAt?: string
   reviewByDate?: string
+  /** Async review-cycle comment thread (Release 12) — see `ReviewerComment`. */
+  reviewerComments?: ReviewerComment[]
   createdAt: string
 }
 
@@ -256,6 +328,7 @@ export interface ProjectRevision {
     info?: ThreatModelInfo
     notes?: string
     customStencils?: CustomStencil[]
+    customRules?: CustomRule[]
     subDiagrams?: Record<string, SubDiagram>
   }
 }
@@ -273,6 +346,10 @@ export interface Project {
   /** User-saved element presets ("save as custom element"), selectable from
    *  the Type picker in the Inspector alongside the built-in stencils. */
   customStencils?: CustomStencil[]
+  /** User-authored STRIDE rules (Release 12), merged in alongside the
+   *  built-in rule set every time threats are regenerated — see
+   *  `generateCustomThreats` in `ruleEngine.ts`. */
+  customRules?: CustomRule[]
   /** Nested drill-down diagrams, keyed by id — see `SubDiagram`. */
   subDiagrams?: Record<string, SubDiagram>
   /** Last `MAX_REVISIONS` (see Canvas.tsx) full-state snapshots, newest

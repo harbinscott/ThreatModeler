@@ -90,6 +90,29 @@
   margin-top: 0.3rem;
 }
 
+.inspector__help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  margin-left: 5px;
+  border-radius: 50%;
+  border: 1px solid var(--text-muted);
+  color: var(--text-muted);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.inspector__help:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 .inspector__advanced-toggle {
   background: none;
   border: none;

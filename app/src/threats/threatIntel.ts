@@ -214,6 +214,14 @@ export function threatToMarkdown(
     if (threat.reviewByDate) lines.push(`- Review by: ${threat.reviewByDate}`)
   }
 
+  if (threat.reviewerComments && threat.reviewerComments.length > 0) {
+    lines.push('')
+    lines.push('### Reviewer comments')
+    for (const c of threat.reviewerComments) {
+      lines.push(`- **${c.author || 'Anonymous reviewer'}** (${new Date(c.createdAt).toLocaleString()}): ${c.text}`)
+    }
+  }
+
   return lines.join('\n')
 }
 

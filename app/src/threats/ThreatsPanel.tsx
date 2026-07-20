@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { ComplianceTag, CustomStencil, DreadContribution, DreadScore, PciScope, StrideCategory, Threat, ThreatStatus } from '../types/project'
+import type { ComplianceTag, CustomStencil, DreadContribution, DreadScore, PciScope, ReviewerComment, StrideCategory, Threat, ThreatStatus } from '../types/project'
 import { findStencil } from '../canvas/stencils'
 import { COMPLIANCE_TAG_COLOR, COMPLIANCE_TAG_LABELS } from '../canvas/complianceTags'
 import { useResizablePanel } from '../canvas/useResizablePanel'
@@ -37,6 +37,11 @@ interface ThreatsPanelProps {
    *  status-change side (Canvas.tsx) the first time status becomes
    *  'accepted'. */
   onChangeAcceptance: (id: string, patch: Partial<Pick<Threat, 'acceptedBy' | 'reviewByDate'>>) => void
+  /** Async reviewer comment thread (Release 12) — distinct from
+   *  onChangeNotes' single resolution field. `author` is freeform, same
+   *  posture as acceptedBy. */
+  onAddReviewerComment: (id: string, text: string, author?: string) => void
+  onDeleteReviewerComment: (id: string, commentId: string) => void
   onDelete: (id: string) => void
   /** Release 11 — exports whatever the current filters/sort produced (not
    *  necessarily every threat in the project), so "export all Critical PCI
@@ -184,6 +189,78 @@ function DreadScoreExplain({
   )
 }
 
+/** Async review-cycle comment thread (Release 12) — distinct from the
+ *  single "Resolution notes" field above it: a running back-and-forth
+ *  ("shouldn't Exploitability be higher given no WAF?" / "good catch,
+ *  bumped it") rather than one freeform summary. Comments are append-only
+ *  (delete only, no edit-in-place) and always shown, not gated behind a
+ *  collapsible toggle — a short review thread is exactly the kind of thing
+ *  worth seeing without an extra click. */
+function ReviewerCommentsSection({
+  comments,
+  onAdd,
+  onDeleteComment,
+}: {
+  comments: ReviewerComment[]
+  onAdd: (text: string, author?: string) => void
+  onDeleteComment: (commentId: string) => void
+}) {
+  const [author, setAuthor] = useState('')
+  const [text, setText] = useState('')
+
+  function submit() {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    onAdd(trimmed, author.trim())
+    setText('')
+  }
+
+  return (
+    <div className="threats-detail__field threats-comments">
+      <span className="threats-detail__label">Reviewer comments</span>
+      {comments.length > 0 && (
+        <ul className="threats-comments__list">
+          {comments.map((c) => (
+            <li key={c.id} className="threats-comments__item">
+              <div className="threats-comments__meta">
+                <span className="threats-comments__author">{c.author || 'Anonymous reviewer'}</span>
+                <span className="threats-comments__date">{new Date(c.createdAt).toLocaleString()}</span>
+                <button
+                  type="button"
+                  className="threats-comments__delete"
+                  title="Delete this comment"
+                  onClick={() => onDeleteComment(c.id)}
+                >
+                  ×
+                </button>
+              </div>
+              <p className="threats-comments__text">{c.text}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="threats-comments__form">
+        <input
+          type="text"
+          className="threats-comments__author-input"
+          value={author}
+          onChange={(e) => setAuthor(e.target.value)}
+          placeholder="Your name (optional)"
+        />
+        <textarea
+          rows={2}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Add a review comment…"
+        />
+        <button type="button" className="btn" onClick={submit} disabled={!text.trim()}>
+          Add comment
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function ThreatsPanel({
   threats,
   dreadEnabled,
@@ -196,6 +273,8 @@ export function ThreatsPanel({
   onChangeNotes,
   onChangeDread,
   onChangeAcceptance,
+  onAddReviewerComment,
+  onDeleteReviewerComment,
   onDelete,
   onExportCsv,
 }: ThreatsPanelProps) {
@@ -676,6 +755,12 @@ export function ThreatsPanel({
               placeholder="Add detail here…"
             />
           </div>
+
+          <ReviewerCommentsSection
+            comments={selected.reviewerComments ?? []}
+            onAdd={(text, author) => onAddReviewerComment(selected.id, text, author)}
+            onDeleteComment={(commentId) => onDeleteReviewerComment(selected.id, commentId)}
+          />
 
           <div className="threats-detail__button-row">
             <button type="button" className="btn" onClick={copySelectedAsMarkdown} title="Copy this threat as formatted Markdown — paste into Jira, GitHub, Linear, or anything else">

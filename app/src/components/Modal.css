@@ -70,7 +70,8 @@
 }
 
 .modal-field input,
-.modal-field textarea {
+.modal-field textarea,
+.modal-field select {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -82,9 +83,27 @@
 }
 
 .modal-field input:focus,
-.modal-field textarea:focus {
+.modal-field textarea:focus,
+.modal-field select:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+.modal-field-row {
+  display: flex;
+  gap: 0.7rem;
+}
+
+.modal-field-row .modal-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.modal-button-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
 }
 
 .modal-message {

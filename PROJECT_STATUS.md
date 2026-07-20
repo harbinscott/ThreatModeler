@@ -77,10 +77,25 @@ obvious from the code alone.
      capture specifically — check for this pattern first if a future
      export looks like it's silently dropping something that renders fine
      live.
-   Next up: **Release 12 — Stretch** (scoped, not started) — see "Release
-   roadmap" below for the full scope.
-5. **Release 13 — Requirements Gap Coverage** (new this session, scoped
-   from the requirements-doc comparison, not built): MITRE ATT&CK citations
+5. **✅ Release 12 — Stretch — done and verified, all four stages.** Crown-
+   jewel asset tagging (feeds DREAD across every STRIDE category, not just
+   a restricted subset — see the writeup for why that's a deliberately
+   different rule than the compliance bump), lightweight async reviewer
+   comments per threat (distinct from Resolution Notes), attack-path
+   analysis (new "Attack Paths" tab — for every crown-jewel/compliance-
+   scoped asset, whether an attacker can reach it from an External Entity
+   without crossing a single mitigation), and custom user-defined STRIDE
+   rules (a project-scoped rule editor, condition -> category + templated
+   description, merged into threat generation alongside the built-in rule
+   set with zero changes needed to `mergeThreats()`'s dedup logic). IaC
+   import was explicitly pulled out of this release into its own
+   Release 14 before starting — valuable, but doesn't change what the tool
+   does with a diagram that's already built, so it shouldn't gate the rest.
+   See "Stretch (Release 12)" under "What's built" for the full writeup.
+   Next up: **Release 13 — Requirements Gap Coverage** (scoped, not
+   started) — see "Release roadmap" below for the full scope.
+6. **Release 13 — Requirements Gap Coverage** (scoped from the
+   requirements-doc comparison, not built): MITRE ATT&CK citations
    alongside the existing CAPEC/CWE ones, control verification states
    (proposed/implemented/verified/failed — weighted DREAD mitigation
    credit instead of today's all-or-nothing), a DREAD scoring rubric with
@@ -93,7 +108,7 @@ obvious from the code alone.
    discovery, SIEM/scanner closed-loop, CMDB/IdP integration, a networked
    REST API — all assume external systems or a server component this local
    desktop app doesn't have).
-6. One more unrelated bug reported in an earlier session, logged but **not
+7. One more unrelated bug reported in an earlier session, logged but **not
    yet fixed** per explicit user request (backlog only):
    `ColorSwatchPicker.tsx`'s "Recent" custom colors all show the same color
    instead of a history of distinct ones after a single custom pick. Root
@@ -103,15 +118,17 @@ obvious from the code alone.
    `addRecentColor()` many times per pick, but `color.ts`'s dedup logic
    looks correct in isolation on a static read, so this needs interactive
    debugging before a fix, not a guess. See Backlog below.
-7. Releases 6 (mitigation elements), 7 (threat intelligence grounding), 8
+8. Releases 6 (mitigation elements), 7 (threat intelligence grounding), 8
    (diagram scalability), 9 (SDLC integration), 10 (AI risk surface & API
-   Gateway), and 11 (reporting & risk register enhancements) are all done
-   and fully verified — see "What's built" below for the full writeups.
-8. One more item came in from Release 3 testing and was folded into the
+   Gateway), 11 (reporting & risk register enhancements), and 12 (stretch:
+   crown jewels, reviewer comments, attack-path analysis, custom rules) are
+   all done and fully verified — see "What's built" below for the full
+   writeups.
+9. One more item came in from Release 3 testing and was folded into the
    roadmap rather than built immediately: an unsaved-changes guard (warn
    before navigating away from an edited-but-unsaved diagram) — Backlog
    item 1 below, small and a real data-safety gap. Not started.
-9. Four small backlog items remain, all low priority, none blocking:
+10. Four small backlog items remain, all low priority, none blocking:
    trust boundary shape editing *after* creation (currently creation-time
    only), further parallel-edge endpoint visual polish, Tidy Up layout
    *quality* (edge-length minimization, horizontal/left-to-right default
@@ -119,10 +136,9 @@ obvious from the code alone.
    bug fixed in item 1 above), and a "threats may be stale" reminder after
    diagram changes (found live during Release 11 testing). See Backlog
    below.
-10. Everything is committed and pushed to
+11. Everything is committed and pushed to
     `https://github.com/harbinscott/ThreatModeler` (`main` branch) as of
-    the end of this session, including Release 10, all of Release 11
-    (stages A-F), and the Tidy Up bugfix from earlier in the same session.
+    the end of this session, including all four stages of Release 12.
 
 ## What this is
 
@@ -1407,6 +1423,123 @@ Diagram captured via `html-to-image`'s `toPng` on the `.react-flow` DOM node
    reliable fix for autofocus-on-remount, and idempotent even if the effect
    fires twice.
 
+**Stretch (Release 12)** — done and verified, all four stages. IaC import
+was pulled out of this release into its own Release 14 before starting
+(explicit user request — valuable, but doesn't change what the tool does
+with a diagram that's already built, so it shouldn't gate smaller,
+more-immediately-useful items). Stages ordered small-and-clear first,
+biggest open design question last.
+
+*Stage A — crown-jewel asset tagging*: new `DiagramNodeData.crownJewel?:
+boolean` (Process and Data Store only — the two "asset-owning" element
+types, unlike compliance tags which are Data Store + Data Flow). Inspector
+checkbox right under the color field, with a "?" `HelpTip` (new small
+reusable component, `Inspector.tsx`) explaining the DREAD effect inline —
+added after user feedback that a tooltip on the whole row wasn't
+discoverable enough on its own. New `CrownJewelBadge.tsx`/`.css` — bottom-
+right corner, the last free corner after `ThreatBadge` (top-right),
+`ComplianceBadge` (bottom-left), and `SubDiagramBadge` (top-left) — gated by
+a new "Crown jewel assets" `OverlayMenu` toggle (default **on**, unlike
+Compliance tags' default-off, since a crown-jewel badge is low-noise and
+important rather than potentially-cluttered). `ThreatOverlayContext` gained
+`crownJewelByTarget: Set<string>` — **direct-only, deliberately not
+flood-filled** like `complianceTagsByTarget`: a crown-jewel designation is
+about *that specific asset's* value, not something proximity should spread,
+so a node that merely talks to a crown jewel doesn't inherit the label.
+`dreadEngine.ts` gained `crownJewelContributions()` — a flat `+2 damage /
++1 affectedUsers` bump, but on **every** STRIDE category, not a restricted
+subset like the compliance bump. Deliberately different rationale: compliance
+scope ties to specific properties (confidentiality/integrity/audit-trail) so
+it only fits some categories, while "this is a crown-jewel asset" is a
+blanket statement about outsized business impact regardless of *how* it's
+compromised — its own clean, statable reason to apply everywhere. Checked
+via a node-target's own flag, or either endpoint's flag for an edge-target
+(same "a tagged flow touches both its endpoints directly" rule the
+compliance bump uses for edges, minus the same-zone flood-fill).
+
+*Stage B — lightweight reviewer comments per threat*: new `ReviewerComment`
+type (`{id, author?, text, createdAt}`) and `Threat.reviewerComments?:
+ReviewerComment[]` — deliberately distinct from the existing single
+"Resolution notes" field: a running async back-and-forth ("shouldn't
+Exploitability be higher given no WAF?" / "good catch, bumped it") rather
+than one freeform summary, append-only (delete only, no edit-in-place — a
+comment thread that silently rewrites itself isn't a real record of a
+review conversation). New `ReviewerCommentsSection` in `ThreatsPanel.tsx`,
+always shown (not gated behind a collapsible toggle, unlike Security
+Properties) between Resolution Notes and the button row — a short review
+thread is exactly the kind of thing worth seeing without an extra click.
+`author` is freeform text, same posture as `acceptedBy` and every other
+attribution field in this app (no user-account system to attach a real
+identity to). `Canvas.tsx` gained `addReviewerComment`/
+`deleteReviewerComment`. Also threaded into `threatToMarkdown()`
+(`threatIntel.ts`) as a new "### Reviewer comments" section, same
+"only included when there's actually something to say" pattern every other
+section there already follows.
+
+*Stage C — attack-path analysis*: new `src/attackPath/` module (own
+directory, not folded into `canvas/` or `threats/` — a new subsystem that
+touches both, same reasoning `subDiagrams.ts` got its own module for).
+`attackPath.ts`: `sensitiveTargets(diagram)` — crown-jewel Process/Data
+Store nodes, or Data Store nodes with directly-assigned compliance scope
+(deliberately *not* extended to propagated compliance scope on Process
+nodes — the roadmap scoped this as "sensitive Data Store," and a node that
+merely talks to a tagged store is a step on the path, not the destination).
+`attackerEntryPoints(diagram)` — every External Entity is a candidate
+foothold (this app has no "trusted vs untrusted external actor" concept
+beyond the `authenticated` flag, surfaced as a signal, not a filter).
+`computeAttackPaths(diagram)` runs plain BFS (fewest-hops — no per-flow
+"cost" concept in this app to weight by, so Dijkstra would be overkill) from
+every entry point to every sensitive target, twice: once unrestricted, once
+with mitigation nodes excluded from the search entirely. The **headline
+signal** is whether that second, mitigation-free search still finds a path
+— if it does, an attacker can reach the asset without crossing a single
+control, regardless of whether a *longer*, mitigated route also exists.
+Follows edges in their declared direction only, same directional assumption
+`ruleEngine.ts`'s boundary-crossing check already makes. New "Attack Paths"
+tab in `Canvas.tsx` (`AttackPathPanel.tsx` — sensitive-asset list on the
+left with an Exposed/Protected/Unreachable status pill each, selected
+asset's hop-by-hop chain on the right, mitigation hops visually marked,
+open-threat counts as small badges per hop/flow, click any hop to jump to
+it on the Diagram tab via a new `viewNodeInDiagram()` in `Canvas.tsx`
+mirroring the existing `viewThreatOnCanvas()` pattern). Scoped to whichever
+diagram level is currently loaded, same as every other diagram-graph
+analysis in this app — sub-diagrams are deliberately not rolled up
+(Release 8's established scope decision).
+
+*Stage D — custom user-defined STRIDE rules*: new `CustomRule` type
+(`types/project.ts`) — `scope` (Process/External Entity/Data Store/
+Mitigation/Data Flow), `category` (STRIDE), a `condition`
+(`'none' | 'true' | 'false' | 'equals'` against a freeform `attributeKey` —
+covers every `AttributeValue` shape without needing a richer expression
+language, and stays freeform specifically so it can reach project-specific
+custom fields that aren't known statically), and `title`/`description`
+templates supporting a `{label}` placeholder. `Project.customRules?:
+CustomRule[]`, threaded into the version-history snapshot alongside
+`customStencils` for consistency. New `generateCustomThreats(diagram,
+rules)` in `ruleEngine.ts` — kept as a separate function called *alongside*
+`generateThreats()` (see `Canvas.tsx`'s `handleRegenerateThreats`) rather
+than folded into it, so the built-in rule set stays simple to read in
+isolation. Rule ids are prefixed `custom-${rule.id}`, so `mergeThreats()`
+needed **zero changes** — it already dedupes/preserves-edits purely on
+`${targetId}:${ruleId}` regardless of where the id came from, and every
+valid target id is already guaranteed present via the built-in threats
+(every node/edge type gets at least one built-in rule), so pruning still
+works correctly without the custom threats needing to establish target
+validity themselves. New `CustomRulesDialog.tsx` (`components/`, reuses
+`Modal.tsx`) reachable from a "Custom Rules" button on the Threats tab
+toolbar — list view with enable/disable checkboxes and delete, plus an
+add/edit form using the existing `Combobox` component for the attribute-key
+field (suggests known field keys via `securityFieldsFor()`/
+`dataFlowSecurityFields()` from `mstmAttributes.ts`, but still accepts
+freeform text for custom properties). Extended `Modal.css`'s shared
+`.modal-field` styling to cover `select` elements (previously only
+input/textarea) and added generic `.modal-field-row`/`.modal-button-row`
+helpers — reusable by any future dialog, not just this one. Same manual
+"click Regenerate Threats to see new matches" convention every other
+threat-affecting change in this app already follows (Backlog item 6 already
+tracks the general "was this reflected?" trap this shares with everything
+else here).
+
 ## Release roadmap (agreed with user — work through in this order)
 
 Grouped into batches of related work rather than one flat backlog, per user
@@ -1579,22 +1712,31 @@ already built:
   - **Standalone diagram export (PNG/SVG)** — `captureDiagramImage()`
     already does the capture internally for PDF export; exposing it as a
     direct export option is small additional work.
-- **Release 12 — Stretch** (original Phase 7 ideas, still valid, renumbered
-  again to make room — was Release 10, then 11): custom user-defined
-  STRIDE rules, IaC import (Terraform/CloudFormation → diagram elements),
-  "crown jewel" asset tagging for risk prioritization (would also feed
-  DREAD scoring the same way compliance tags do — a natural extension of
-  the existing `complianceContributions()` pattern). Also noted as worth
-  considering for a future release, not yet scoped: attack-path analysis
-  (the diagram is already a graph, and mitigation nodes already sit
-  in-line on flows — tracing the shortest path from an untrusted External
-  Entity to a sensitive Data Store and showing what's mitigated along the
-  way could be a genuinely differentiated feature — the requirements doc
-  independently flags this as one of the biggest differentiators in the
-  market, "very few tools do this well," worth weighing above plain
-  "stretch" priority when this release actually comes up), and
-  lightweight reviewer comments per threat (distinct from resolution
-  notes, for async review cycles short of full multi-user editing).
+- **Release 12 — Stretch** ✅ done and verified, all four stages — see
+  "Stretch (Release 12)" under "What's built" for the full writeup. IaC
+  import was pulled out into its own Release 14 (see below) per explicit
+  user request: valuable, but not something that changes what the tool can
+  already do for a diagram that's already built, so it doesn't need to
+  block the rest of this release. Four stages, ordered small-and-clear
+  first, biggest-design-question last:
+  - **Stage A — "crown jewel" asset tagging** for risk prioritization —
+    feeds DREAD scoring the same way compliance tags do, a natural
+    extension of the existing `complianceContributions()` pattern in
+    `dreadEngine.ts`.
+  - **Stage B — lightweight reviewer comments per threat** — distinct from
+    resolution notes, for async review cycles short of full multi-user
+    editing.
+  - **Stage C — attack-path analysis** — the diagram is already a graph,
+    and mitigation nodes already sit in-line on flows — tracing the
+    shortest/riskiest path from an untrusted External Entity to a
+    sensitive target and showing what's mitigated along the way. The
+    requirements doc independently flags this as one of the biggest
+    differentiators in the market, "very few tools do this well" — placed
+    ahead of custom rules for that reason even though it's more build
+    effort.
+  - **Stage D — custom user-defined STRIDE rules** — biggest open design
+    question of the four (a rule-authoring UI plus integration with
+    `mergeThreats()`'s dedup/preserve-edits logic), left for last.
 - **Release 13 — Requirements Gap Coverage** *(new this session, scoped
   from a systematic comparison against the user-supplied competitor
   requirements doc; not started)*. See "Requirements doc gap analysis"
@@ -1640,6 +1782,24 @@ already built:
     desktop app doesn't have and isn't trying to be — building any of
     these would be a different kind of product, not an extension of this
     one.
+- **Release 14 — IaC Import** *(split out of Release 12 per explicit user
+  request; not started)*. Import Terraform/CloudFormation (and possibly
+  ARM/Bicep, Pulumi) definitions and generate starter diagram elements
+  from the declared infrastructure — a jump-start for modeling an
+  already-provisioned system rather than drawing it by hand. Deliberately
+  kept separate from the rest of Release 12: it's valuable but doesn't
+  improve anything about a diagram that's already built, so it shouldn't
+  gate the smaller, more immediately useful items (crown-jewel tagging,
+  reviewer comments, attack-path analysis, custom rules). Needs its own
+  scoping pass before starting — likely questions: which IaC formats to
+  support first (Terraform HCL is the most common, but parsing it
+  properly needs a real parser, not regex), how resource types map to
+  DFD element types/stencils (an AWS S3 bucket is clearly a Data Store,
+  but a Lambda function or ECS service needs judgment calls), how
+  generated elements interact with existing manual-edit-preservation
+  patterns (`mergeThreats()`'s "don't clobber user edits" precedent is
+  probably the right model), and whether re-importing after infra changes
+  should update existing elements in place or just add new ones.
 
 ## Backlog (explicitly deferred, in rough priority order per most recent conversation)
 
