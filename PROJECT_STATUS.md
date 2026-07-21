@@ -183,14 +183,29 @@ obvious from the code alone.
     readiness (Release 16)" under "What's built" for the fold-in; the
     review's own artifact has the full per-finding detail if it's still
     needed — the durable summary now lives in this file.
-11. **No backlog items remain.** Releases 0-16 are all done and fully
+11. **✅ Post-1.0 fixes (v0.1.1) — done and verified.** The user's own
+    hands-on QA pass (post-1.0, pre-peer-review) surfaced two real bugs
+    (trust boundary containment reading a stale size source; new elements
+    dropping at a fixed diagram origin instead of the current viewport) and
+    one false alarm (PDF export screenshots going missing — resolved by a
+    fresh relaunch, third occurrence of the stale-HMR pattern this
+    project). Also investigated an Attack Paths reachability question by
+    reading the actual saved project JSON off disk rather than guessing —
+    confirmed the algorithm was correct and the cause was backwards edge
+    directions from Terraform import, fixed by the user reversing the
+    specific edges by hand. See "Post-1.0 fixes (v0.1.1)" under "What's
+    built" for the full writeup. **A peer-test round is still pending at
+    time of writing** — the user expects design/UI/UX feedback from that to
+    drive the next round of updates after this one.
+12. **No backlog items remain.** Releases 0-16 are all done and fully
     verified — see "What's built" below for the full writeups. The project
-    is at its planned 1.0 scope; further work is incremental post-1.0
-    updates per the user's own framing, not a backlog to work through.
-12. Everything is committed and pushed to
+    is at its planned 1.0 scope (now v0.1.1); further work is incremental
+    post-1.0 updates per the user's own framing, not a backlog to work
+    through.
+13. Everything is committed and pushed to
     `https://github.com/harbinscott/ThreatModeler` (`main` branch) as of
-    the end of this session, including all five stages of Release 16, and
-    a fresh installer build was verified working.
+    the end of this session, including the v0.1.1 post-1.0 fixes, and a
+    fresh v0.1.1 installer build.
 
 ## What this is
 
@@ -2406,6 +2421,65 @@ already built:
     help/onboarding dialog (workflow guide + real keyboard shortcuts).
   - **✅ Stage E — shipped**: docs rewrite, fresh installer build verified,
     pushed to GitHub.
+
+**Post-1.0 fixes (v0.1.1)** — the first round of incremental updates after
+shipping, found during the user's own hands-on QA pass plus a peer-test
+round still pending at time of writing. Two real bugs, one false alarm:
+
+- **Trust boundary containment used a stale size source.** A real,
+  root-caused bug: `diagnostics.ts` had its own private `boundaryContains()`
+  helper — never migrated to reuse `boundaryGeometry.ts`'s shared `nodeRect()`
+  (built specifically, per its own doc comment, "so the two don't drift
+  apart on how width/height gets resolved" — but this file drifted anyway).
+  It only read `boundary.style?.width/height`, ignoring `measured` entirely,
+  and fell back to a hardcoded 320×220 box otherwise — so any boundary
+  resized larger than that (e.g. a hand-drawn "Cloud" boundary) silently
+  checked containment against a phantom small box instead of its real size,
+  producing a false "doesn't contain any elements" warning even with
+  elements clearly inside it. Fixed by having `diagnostics.ts` import and
+  reuse `containingBoundaries()` instead of its own copy.
+- **New elements always dropped at a fixed diagram-space origin.**
+  `makeNode()`'s position formula was `{x: 120 + ..., y: 120 + ...}` —
+  completely independent of pan/zoom, so on a panned/zoomed diagram a new
+  shape could land far off-screen, forcing a bounce back to find it. Fixed
+  by computing drop position via React Flow's `screenToFlowPosition()`
+  against the current viewport center (a new `flowWrapRef` on
+  `.canvas-flow-wrap` + `viewportCenterFlowPosition()` helper in
+  `Canvas.tsx`), with the same small staircase offset preserved for
+  successive adds so they don't stack exactly on top of each other.
+- **PDF export screenshots (main diagram + every sub-diagram) went
+  missing — false alarm, not a real bug.** `captureDiagramImage()`'s
+  `try { ... } catch { return null }` was silently swallowing whatever
+  `html-to-image` threw, and `reportTemplate.ts`'s fallback text for a null
+  image ("No elements in this sub-diagram.") is misleading — it fires for
+  *any* capture failure, not just a genuinely empty sub-diagram, which is
+  exactly what confused the report. Added `console.error` logging to the
+  catch block to actually investigate — but before the user could share the
+  logged error, a fresh Electron relaunch (already in progress for an
+  unrelated checkpoint) made the problem disappear entirely. **Third
+  occurrence of this exact pattern this project** (see Release 14 stage C's
+  "Boundary shape changer" note): a file edited many times in one session
+  can leave an already-open window in a genuinely broken-looking state via
+  stale Vite HMR, indistinguishable from a real bug until tested in a fresh
+  window. The `console.error` call was left in place — harmless, and useful
+  if this ever recurs for real. **Worth remembering as a standing habit,
+  not just a one-off note**: before deep-diving a reported bug in a
+  long-running dev session, try a fresh relaunch first — it's the cheapest
+  possible test and has now ruled out three "real" bugs in a row.
+- **Also found and fixed during this round, not from a user report**:
+  the Attack Paths tab correctly showed several assets as "Unreachable" in
+  a test diagram — investigated by reading the actual saved project JSON
+  off disk (`app.getPath('userData')/projects/*.json`) rather than
+  guessing, which confirmed the algorithm was working exactly as designed:
+  three `Web Server → Load Balancer` edges pointed backwards (a load
+  balancer distributes traffic *to* servers, so it should read the other
+  way), an artifact of the Terraform importer's dependency-graph-based edge
+  inference guessing wrong for that specific resource relationship (it
+  guessed right for WAF/Firewall). Not fixed in code — the user chose to
+  reverse the specific edges by hand for now via the existing per-edge
+  "Reverse direction" Inspector control; improving the importer's
+  direction-inference heuristic for load-balancer-style resources remains
+  a possible future backlog item if this recurs on other imports.
 
 ## Backlog (explicitly deferred, in rough priority order per most recent conversation)
 

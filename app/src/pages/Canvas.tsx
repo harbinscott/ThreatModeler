@@ -107,13 +107,14 @@ function comparableSnapshot(committed: Project, pasta: PastaData): string {
 function makeNode(
   elementType: ElementType,
   index: number,
+  basePosition: { x: number; y: number },
   stencil?: StencilDef,
   boundaryPreset?: BoundaryShapePreset
 ): DiagramNode {
   const base = {
     id: crypto.randomUUID(),
     type: elementType,
-    position: { x: 120 + (index % 5) * 60, y: 120 + (index % 5) * 50 },
+    position: { x: basePosition.x + (index % 5) * 60, y: basePosition.y + (index % 5) * 50 },
     data: {
       label: stencil ? stencil.name : `New ${SHAPE_LABELS[elementType]}`,
       elementType,
@@ -182,7 +183,8 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     min: 120,
     maxMargin: 200,
   })
-  const { fitView } = useReactFlow()
+  const { fitView, screenToFlowPosition } = useReactFlow()
+  const flowWrapRef = useRef<HTMLDivElement>(null)
   const history = useDiagramHistory()
   const isRestoringRef = useRef(false)
   const historyInitializedRef = useRef(false)
@@ -333,15 +335,30 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     [nodes, edges, setEdges]
   )
 
+  // New shapes drop at the center of whatever's currently visible instead of
+  // a fixed diagram-space origin — on a panned/zoomed diagram, dropping at a
+  // fixed point far off-screen meant bouncing the viewport back and forth
+  // just to find what you'd added. `screenToFlowPosition` (React Flow) does
+  // the pan/zoom-aware conversion; falls back to the window center if the
+  // wrapper hasn't measured yet (e.g. immediately after switching tabs).
+  function viewportCenterFlowPosition(): { x: number; y: number } {
+    const rect = flowWrapRef.current?.getBoundingClientRect()
+    const screenCenter = rect
+      ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+      : { x: window.innerWidth / 2, y: window.innerHeight / 2 }
+    const flowCenter = screenToFlowPosition(screenCenter)
+    return { x: flowCenter.x - 75, y: flowCenter.y - 25 }
+  }
+
   function addShape(elementType: ElementType, preset?: StencilOption) {
     const stencil = preset ? findStencil(preset.id, project?.customStencils ?? []) : undefined
-    const node = makeNode(elementType, addedCount, stencil)
+    const node = makeNode(elementType, addedCount, viewportCenterFlowPosition(), stencil)
     setAddedCount((c) => c + 1)
     setNodes((nds) => [...nds, node])
   }
 
   function addBoundary(preset: BoundaryShapePreset) {
-    const node = makeNode('trust-boundary', addedCount, undefined, preset)
+    const node = makeNode('trust-boundary', addedCount, viewportCenterFlowPosition(), undefined, preset)
     setAddedCount((c) => c + 1)
     setNodes((nds) => [...nds, node])
   }
@@ -552,7 +569,8 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
     }
     try {
       return format === 'svg' ? await toSvg(el, opts) : await toPng(el, opts)
-    } catch {
+    } catch (err) {
+      console.error('captureDiagramImage failed:', err)
       return null
     }
   }
@@ -1243,7 +1261,7 @@ function CanvasInner({ projectId, onBack }: CanvasProps) {
       {view === 'diagram' && (
         <div className="canvas-diagram-area">
           <div className="canvas-body">
-            <div className="canvas-flow-wrap">
+            <div className="canvas-flow-wrap" ref={flowWrapRef}>
               <ThreatOverlayContext.Provider
                 value={{
                   threatsByTarget: overlayLayers.threatBadges ? openThreatsByTarget : EMPTY_THREAT_MAP,

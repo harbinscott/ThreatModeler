@@ -1,4 +1,5 @@
 import type { Diagram, Threat } from '../types/project'
+import { containingBoundaries } from '../canvas/boundaryGeometry'
 
 export interface DiagramMessage {
   severity: 'warning' | 'info'
@@ -46,18 +47,8 @@ export function getDiagramMessages(diagram: Diagram, threats: Threat[]): Diagram
     }
   }
 
-  function boundaryContains(node: (typeof diagram.nodes)[number], boundary: (typeof diagram.nodes)[number]) {
-    const bw = typeof boundary.style?.width === 'number' ? boundary.style.width : 320
-    const bh = typeof boundary.style?.height === 'number' ? boundary.style.height : 220
-    const nw = node.measured?.width ?? 150
-    const nh = node.measured?.height ?? 50
-    const cx = node.position.x + nw / 2
-    const cy = node.position.y + nh / 2
-    return cx >= boundary.position.x && cx <= boundary.position.x + bw && cy >= boundary.position.y && cy <= boundary.position.y + bh
-  }
-
   for (const boundary of boundaries) {
-    const hasContents = nonBoundaryNodes.some((n) => boundaryContains(n, boundary))
+    const hasContents = nonBoundaryNodes.some((n) => containingBoundaries(n, boundaries).includes(boundary))
     if (!hasContents) {
       messages.push({ severity: 'warning', text: `Trust boundary "${boundary.data.label}" doesn't contain any elements.` })
     }
