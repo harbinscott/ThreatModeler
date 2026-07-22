@@ -17,6 +17,8 @@ as a solo learning/portfolio project — every design decision below was made
 and can be second-guessed on its own merits, not because "that's how the
 other tools do it."
 
+![Diagram canvas showing a data-flow diagram with trust boundaries, mitigations, and live threat-count badges](docs/screenshots/diagram.png)
+
 ## Contents
 
 - [Why this exists](#why-this-exists)
@@ -112,9 +114,29 @@ score across the board.
 
 ## Screenshots
 
-_Coming soon — this project is under active development. See
-[`PROJECT_STATUS.md`](PROJECT_STATUS.md) for the full build history if
-you'd like more detail before screenshots land here._
+**Dashboard**
+![Dashboard project list with the geometric header background](docs/screenshots/dashboard.png)
+
+**New Project wizard** — pick which frameworks apply, then start blank, from a template, or from a Terraform import
+![New Project wizard showing the STRIDE/DREAD/PASTA framework picker and starting-point templates](docs/screenshots/newproject.png)
+
+**Security properties** — the MS-TMT–derived attribute schema, live in the Inspector
+![Inspector panel open on a Web Server process node, showing its security-attribute schema](docs/screenshots/inspector.png)
+
+**DREAD scoring, fully explained** — every score comes with citations and a breakdown of exactly what drove it
+![Threats tab showing a DREAD score breakdown with CWE/CAPEC/ATT&CK citations](docs/screenshots/threats.png)
+
+**Attack-path analysis** — can an attacker reach this asset, and through what chain?
+![Attack Paths tab showing an unmitigated path from an External Entity to a sensitive asset](docs/screenshots/attackpaths.png)
+
+**Reverse compliance view** — start from a framework, see what's in scope and its risk status
+![Compliance tab scoped to FedRAMP, listing every in-scope element with its open-threat count and risk level](docs/screenshots/compliance.png)
+
+**PASTA workflow** — a guided, 7-stage business-risk process alongside the diagram
+![PASTA tab on Stage 1: Define Objectives](docs/screenshots/pasta.png)
+
+**Export** — PDF, CSV, PNG/SVG, and SARIF/OTM for interop with other tooling
+![Export menu showing Executive Summary PDF, Detailed Report PDF, Diagram PNG/SVG, and Threat Model OTM options](docs/screenshots/reporting.png)
 
 ## Getting started
 
