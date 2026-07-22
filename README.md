@@ -136,6 +136,7 @@ score across the board.
 ![PASTA tab on Stage 1: Define Objectives](docs/screenshots/pasta.png)
 
 **Export** — PDF, CSV, PNG/SVG, and SARIF/OTM for interop with other tooling
+
 ![Export menu showing Executive Summary PDF, Detailed Report PDF, Diagram PNG/SVG, and Threat Model OTM options](docs/screenshots/reporting.png)
 
 ## Getting started
