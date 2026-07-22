@@ -143,7 +143,7 @@ score across the board.
 **Prerequisites**: Node.js 24+ (LTS), Windows.
 
 ```bash
-git clone https://github.com/harbinscott/ThreatModeler.git
+git clone https://github.com/<user>/ThreatModeler.git
 cd ThreatModeler/app
 npm install
 npm run electron:dev
