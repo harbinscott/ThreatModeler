@@ -224,8 +224,10 @@ bug + rebranded to 'Threat Modeler'" below for the full rebrand writeup).
 
 ## Where things live
 
-- Working directory root: `C:\Users\harbi\OneDrive\Desktop\ThreatModeling`
-- Actual app code: `C:\Users\harbi\OneDrive\Desktop\ThreatModeling\app`
+- Working directory root: the repo root — this file (`PROJECT_STATUS.md`)
+  and `README.md` live at that level, alongside `app/` (the actual app code,
+  not the repo root — every `npm`/build command in this doc runs from
+  inside `app/`).
 - **Git repo, pushed to GitHub**: `https://github.com/harbinscott/ThreatModeler`
   (`main` branch). Repo root is the `ThreatModeling` folder (not `app/`), so
   `PROJECT_STATUS.md` and `README.md` are tracked alongside `app/`. The repo
@@ -234,9 +236,10 @@ bug + rebranded to 'Threat Modeler'" below for the full rebrand writeup).
   that commit (`git reset --soft origin/main` then commit + push), not force-pushed
   over it, so that original commit is still in the log. Root `.gitignore`
   excludes `.claude/` (local tool config); `app/.gitignore` (pre-existing, from
-  the Vite scaffold) excludes `node_modules`/`dist`. Git identity for this
-  machine: `harbinscott` / `harbin.scott@gmail.com` (set globally via `git
-  config --global`, this machine had none before). Push auth goes through Git
+  the Vite scaffold) excludes `node_modules`/`dist`. Git identity is set
+  globally via `git config --global` (this machine had none before) — see
+  the repo's commit history for the actual name/email used, not repeated
+  here since this file is public. Push auth goes through Git
   Credential Manager (`credential.helper=manager`, already configured
   system-wide) — no PAT/SSH key needed, it handles the browser OAuth flow
   itself (didn't even prompt on the first push here, likely cached).
@@ -2090,8 +2093,8 @@ documentation site, no per-feature help content, just this one dialog.
 
 *Stage E — shipped*: full `PROJECT_STATUS.md` rewrite (this section), a
 fresh `npm run electron:build` (first rebuild since much earlier in the
-project — output to `C:\Users\harbi\ThreatModeling-builds`, outside the
-OneDrive-synced tree per the earlier `EPERM` fix), installed and launched
+project — output to a local build folder outside the OneDrive-synced tree
+per the earlier `EPERM` fix), installed and launched
 to confirm the standalone packaged app actually works end-to-end and not
 just `electron:dev`, then committed and pushed.
 
@@ -2544,19 +2547,23 @@ Done this session (context for why the code looks the way it does):
   never been run before this session. First two attempts failed identically
   with `EPERM: operation not permitted, rename ...win-unpacked.tmp ->
   ...win-unpacked` during Electron binary extraction — root cause is almost
-  certainly OneDrive sync (this project lives under
-  `...\OneDrive\Desktop\ThreatModeling`) locking files mid-extraction; Windows
-  Defender real-time scanning is a plausible secondary contributor. **Fix**:
-  changed `package.json`'s `build.directories.output` from the relative
-  `"release"` (inside the OneDrive-synced tree) to the absolute path
-  `C:\Users\harbi\ThreatModeling-builds` (outside it). Third attempt succeeded
-  end-to-end and produced `ThreatModeler Setup 0.0.0.exe` in that folder. Note
-  for whoever runs this next: the installer is **unsigned** (no
+  certainly OneDrive (or any cloud-sync client) locking files mid-extraction
+  if the project happens to live inside a synced folder; Windows Defender
+  real-time scanning is a plausible secondary contributor. **Fix at the
+  time**: pointed `package.json`'s `build.directories.output` at an absolute
+  path outside the synced tree, which worked but hardcoded a personal
+  machine path into a public repo. **Reverted since** (see the public-repo
+  cleanup entry further down) back to the relative default `"release"` —
+  portable for anyone cloning the repo, and if you hit the same `EPERM`
+  because your own checkout also happens to sit inside a cloud-synced
+  folder, override it per-build without touching the committed config:
+  `npm run electron:build -- -c.directories.output=<path outside the
+  synced folder>`. Third attempt (with the original absolute-path fix)
+  succeeded end-to-end and produced a working installer. Note for whoever
+  runs this next: the installer is **unsigned** (no
   `certificateFile`/`win.certificateSubjectName` configured) — Windows
   SmartScreen will show an "unrecognized publisher" warning on first run,
-  which is expected for a hobby/portfolio build, not a bug. If this project is
-  ever moved out of the OneDrive-synced folder, the output path could be
-  reverted to a relative `"release"` directory again.
+  which is expected for a hobby/portfolio build, not a bug.
 - **Installer wasn't showing up in Windows 11 Settings → Installed apps
   (Release 16 follow-up)** — a real user report, root-caused rather than
   guessed at. The uninstall registry entry (`HKCU\...\Uninstall\{guid}`)

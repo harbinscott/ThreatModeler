@@ -17,6 +17,21 @@ async function ensureProjectsDir() {
   await fs.mkdir(projectsDir(), { recursive: true })
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** Every project id in this app is a `randomUUID()` this process generated
+ *  itself (projects:create / projects:import-file) — nothing should ever
+ *  need to build a project file path from an id that didn't come from one
+ *  of those two places. Validating against the UUID shape before it ever
+ *  reaches `path.join` closes off the renderer being able to pass something
+ *  like `../../../whatever` and have it resolved outside `projectsDir()`. */
+function projectFilePath(id) {
+  if (typeof id !== 'string' || !UUID_RE.test(id)) {
+    throw new Error('Invalid project id')
+  }
+  return path.join(projectsDir(), `${id}.json`)
+}
+
 ipcMain.handle('projects:list', async () => {
   await ensureProjectsDir()
   const files = await fs.readdir(projectsDir())
@@ -46,7 +61,7 @@ ipcMain.handle('projects:create', async (_event, input) => {
 })
 
 ipcMain.handle('projects:get', async (_event, id) => {
-  const raw = await fs.readFile(path.join(projectsDir(), `${id}.json`), 'utf-8')
+  const raw = await fs.readFile(projectFilePath(id), 'utf-8')
   const project = JSON.parse(raw)
   if (!project.diagram) project.diagram = { nodes: [], edges: [] }
   if (!project.threats) project.threats = []
@@ -59,12 +74,12 @@ ipcMain.handle('projects:get', async (_event, id) => {
 
 ipcMain.handle('projects:save', async (_event, project) => {
   const updated = { ...project, updatedAt: new Date().toISOString() }
-  await fs.writeFile(path.join(projectsDir(), `${updated.id}.json`), JSON.stringify(updated, null, 2))
+  await fs.writeFile(projectFilePath(updated.id), JSON.stringify(updated, null, 2))
   return updated
 })
 
 ipcMain.handle('projects:delete', async (_event, id) => {
-  await fs.rm(path.join(projectsDir(), `${id}.json`), { force: true })
+  await fs.rm(projectFilePath(id), { force: true })
 })
 
 ipcMain.handle('projects:export-file', async (event, project) => {

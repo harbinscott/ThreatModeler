@@ -42,7 +42,7 @@
     "appId": "com.threatmodeler.app",
     "productName": "Threat Modeler",
     "directories": {
-      "output": "C:\\Users\\harbi\\ThreatModeling-builds"
+      "output": "release"
     },
     "files": [
       "dist/**/*",

@@ -156,10 +156,14 @@ To build a standalone Windows installer:
 npm run electron:build
 ```
 
-Output lands wherever `build.directories.output` in `app/package.json`
-points — by default this repo builds outside any cloud-synced folder to
-avoid file-lock issues during packaging (see `PROJECT_STATUS.md` if you hit
-an `EPERM` error during the build and need to know why).
+Output lands in `app/release/` by default. If your checkout lives inside a
+cloud-synced folder (OneDrive, Dropbox, etc.), you may hit an `EPERM`
+error during packaging — see `PROJECT_STATUS.md` for why, and override the
+output directory for that build without editing the committed config:
+
+```bash
+npm run electron:build -- -c.directories.output=<path outside the synced folder>
+```
 
 ## Tech stack
 
